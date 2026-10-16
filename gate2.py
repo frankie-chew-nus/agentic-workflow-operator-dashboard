@@ -56,6 +56,27 @@ def failed_rule_instruction():
         key=str(f).split(':',1)[0];items.append(mapping.get(key,'Correct failed contract rule: '+str(f)))
     return 'Correction is limited to these failed revision-contract rules. Preserve every passing rule and all previously accepted requirements. ' + ' '.join(items) + ' No other changes are authorized.'
 
+def sync_b_authority_to_existing_workflow(candidate_id):
+    # The dashboard owns the new Human decision; the existing B boundary reads its own
+    # workflow DB for RETURN_TO_B authority. Bridge the decision without migrating workflow logic.
+    dc=cx()
+    d=dc.execute("SELECT * FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(candidate_id,)).fetchone()
+    dc.close()
+    if not d: raise RuntimeError('No dashboard Human decision found for '+candidate_id)
+    workflow_db=LEGACY_OPERATOR/'evidence'/'operator.db'
+    if not workflow_db.exists(): workflow_db=LEGACY_OPERATOR/'evidence'/'state.db'
+    if not workflow_db.exists(): raise FileNotFoundError('Existing workflow decision DB not found')
+    wc=sqlite3.connect(workflow_db); wc.row_factory=sqlite3.Row
+    mapped='RETURN_TO_B' if d['decision'] in ('RETURN_TO_B','RETURN_FAILED_RULES','RETRY_B','RESUME_B') else d['decision']
+    bridge_id='DASH-'+d['id']
+    exists=wc.execute("SELECT 1 FROM decisions WHERE id=?",(bridge_id,)).fetchone()
+    if not exists:
+        wc.execute("INSERT INTO decisions(id,research_id,candidate_id,decision,rationale,created_at) VALUES(?,?,?,?,?,?)",
+                   (bridge_id,d['research_id'],candidate_id,mapped,d['rationale'],d['created_at']))
+        wc.commit()
+    wc.close()
+    return workflow_db
+
 def b_flow_cmd():
     # Dashboard orchestrates the already-proven B adapter; it does not migrate/reimplement it.
     import os
@@ -69,8 +90,7 @@ def b_flow_cmd():
     if not flow:
         raise FileNotFoundError('Existing B adapter not found. Expected gate2_operator_app_v1\\b_resume_model_flow_v1_1.py (or set GATE2_B_ADAPTER).')
     # Keep B adapter state/evidence with the existing workflow location.
-    workflow_db=LEGACY_OPERATOR/'evidence'/'operator.db'
-    if not workflow_db.exists(): workflow_db=LEGACY_OPERATOR/'evidence'/'state.db'
+    workflow_db=sync_b_authority_to_existing_workflow('CAND-B-002')
     return [sys.executable,str(flow),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate','CAND-B-002','--output-dir',str(LEGACY_OPERATOR/'evidence'/'b_resume'/'CAND-B-002'),'--env',str(CROOT/'.env')]
 
 def dispatcher():
