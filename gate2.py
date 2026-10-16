@@ -75,11 +75,13 @@ def review_data(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-
 def attempted_data(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'corrected_candidate.json')
 def regression_hold(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'b_regression_hold.json')
 def contract_data(): return load_json(BASE/'b002_revision_contract.json') or {'rules':[]}
-def expandable_log(path):
+def expandable_log(path,running=False):
     p=Path(path)
-    try: text=p.read_text(encoding='utf-8',errors='replace') if p.exists() else 'Log file not found: '+str(p)
+    if running and not p.exists():
+        return '<details><summary>View execution log</summary><pre>Execution has started. The log file has not been created yet; refresh while B is running.</pre></details>'
+    try: text=p.read_text(encoding='utf-8',errors='replace') if p.exists() else 'Log file unavailable: '+str(p)
     except Exception as e: text='Unable to read log: '+str(e)
-    return '<details><summary>View execution / failure log</summary><pre>'+html.escape(text)+'</pre></details>'
+    return '<details><summary>'+('View execution log' if running else 'View failure log')+'</summary><pre>'+html.escape(text)+'</pre></details>'
 def spec_details(label,obj): return '<details><summary>'+html.escape(label)+'</summary><pre>'+html.escape(json.dumps(obj or {},indent=2))+'</pre></details>'
 
 def governance_html():
@@ -99,7 +101,7 @@ def form_buttons(buttons,placeholder='Human rationale'):
     return '<form method=post action=/decide><textarea name=rationale required minlength=12 placeholder="'+html.escape(placeholder)+'"></textarea><input type=hidden name=candidate value=CAND-B-002>'+bs+'</form>'
 
 def stage_body(candidate,job):
-    if job and job['candidate_id']=='CAND-B-002': return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'])+'<button onclick="location.reload()">Refresh</button></div>'
+    if job and job['candidate_id']=='CAND-B-002': return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate:return ''
     st=candidate['state']
     if st=='B_REVIEW':
