@@ -62,9 +62,18 @@ def dispatcher():
             c.commit();c.close()
         except Exception: threading.Event().wait(1)
 
-def review_data(): return load_json(BASE/'evidence'/'b_resume'/'CAND-B-002'/'b_corrected_release.json')
-def attempted_data(): return load_json(BASE/'evidence'/'b_resume'/'CAND-B-002'/'corrected_candidate.json')
-def regression_hold(): return load_json(BASE/'evidence'/'b_resume'/'CAND-B-002'/'b_regression_hold.json')
+def external_evidence_root():
+    # Dashboard owns UI state, not workflow evidence. Prefer configured/existing workflow evidence.
+    import os
+    configured=os.environ.get('GATE2_OPERATOR_EVIDENCE_ROOT')
+    candidates=[Path(configured) if configured else None, PROJECT/'gate2_operator_app_v1'/'evidence', BASE/'evidence']
+    for p in candidates:
+        if p and (p/'b_resume'/'CAND-B-002').exists(): return p
+    return BASE/'evidence'
+
+def review_data(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'b_corrected_release.json')
+def attempted_data(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'corrected_candidate.json')
+def regression_hold(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'b_regression_hold.json')
 def contract_data(): return load_json(BASE/'b002_revision_contract.json') or {'rules':[]}
 def expandable_log(path):
     p=Path(path)
