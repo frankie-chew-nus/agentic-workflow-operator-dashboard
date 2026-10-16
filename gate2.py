@@ -41,6 +41,21 @@ def queue(c,rid,cid,kind,detail):
     jid='JOB-'+uuid.uuid4().hex[:10].upper();log=BASE/'evidence'/'logs'/(jid+'.log');log.parent.mkdir(parents=True,exist_ok=True)
     c.execute('INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?)',(jid,rid,cid,kind,'QUEUED',detail,str(log),now(),None,None,None));return True
 
+def failed_rule_instruction():
+    hold=regression_hold() or {}
+    if hold.get('reason')!='CORRECTION_REGRESSION': return None
+    mapping={
+      'VERSION_MUST_BE':'Increment to the required next immutable patch version.',
+      'STRICT_NR_N_NOT_PRESERVED':'Preserve strict < NR-N semantics consistently throughout.',
+      'VOLATILITY_EXPANSION_RULE_MISSING':'Restore the deterministic rule: breakout candle range > average range of the preceding N candles.',
+      'VOLATILITY_EXPANSION_NOT_IN_ENTRY':'Require volatility-expansion confirmation in both long and short entry logic.',
+      'ATR_DEFAULT_SEARCH_RELATION_NOT_PRESERVED':'Preserve ATR(14) multiplier 2.0 as default/start within the authorized 1.5-3.0 range.'
+    }
+    items=[]
+    for f in hold.get('failures',[]):
+        key=str(f).split(':',1)[0];items.append(mapping.get(key,'Correct failed contract rule: '+str(f)))
+    return 'Correction is limited to these failed revision-contract rules. Preserve every passing rule and all previously accepted requirements. ' + ' '.join(items) + ' No other changes are authorized.'
+
 def b_flow_cmd():
     # Dashboard orchestrates the already-proven B adapter; it does not migrate/reimplement it.
     import os
@@ -157,7 +172,11 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d in ('RETURN_TO_B','RESUME_B','RETRY_B','RETURN_FAILED_RULES'):decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'B_RESUME','Governed B correction via configured model endpoint')
+            if d in ('RETURN_TO_B','RESUME_B','RETRY_B','RETURN_FAILED_RULES'):
+                if d=='RETURN_FAILED_RULES':
+                    auto=failed_rule_instruction()
+                    if auto: rat=(rat+'\n\nAUTO FAILED-RULE INSTRUCTION: '+auto).strip()
+                decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'B_RESUME','Governed B correction via configured model endpoint')
             elif d=='REJECT':decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='REJECTED',detail='Human rejected candidate' WHERE id=?",(cid,))
             elif d=='RELEASE_TO_C':decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='READY_FOR_C',stage='B',detail='Human released corrected B candidate to C queue' WHERE id=?",(cid,))
         c.commit();c.close();self.send_response(303);self.send_header('Location','/');self.end_headers()
