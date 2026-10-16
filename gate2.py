@@ -65,7 +65,7 @@ def dispatcher():
             if not j: c.close();threading.Event().wait(1);continue
             c.execute("UPDATE jobs SET state='RUNNING',started_at=? WHERE id=?",(now(),j['id']));c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],));c.commit();c.close()
             cmd=b_flow_cmd()
-            with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=BASE,stdout=f,stderr=subprocess.STDOUT,text=True)
+            with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
             c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
             rel=BASE/'evidence'/'b_resume'/j['candidate_id']/'b_corrected_release.json'; gx=load_json(BASE/'evidence'/'b_resume'/j['candidate_id']/'b_regression_hold.json') or {}
             if q.returncode==0 and rel.exists():
