@@ -19,3 +19,7 @@ The stage-owned journey renderer makes A→E the authoritative UI structure:
 - B revision contract diagnostics show failed rules and previous/attempted specifications.
 
 The backend still expects the already-tested local B helper files and sibling `gate2_c_controller` environment used by the current workstation.
+
+## Existing workflow integration
+
+The dashboard does not copy the B workflow. By default it invokes the proven adapter from sibling `gate2_operator_app_v1` and keeps B evidence there. Override only when needed with `GATE2_B_ADAPTER`.
