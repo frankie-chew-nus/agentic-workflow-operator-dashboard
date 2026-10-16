@@ -7,6 +7,7 @@ BASE=Path(__file__).resolve().parent
 DB=BASE/'evidence'/'operator.db'
 PROJECT=BASE.parent
 CROOT=PROJECT/'gate2_c_controller'
+LEGACY_OPERATOR=PROJECT/'gate2_operator_app_v1'
 PORT=8787
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -41,9 +42,21 @@ def queue(c,rid,cid,kind,detail):
     c.execute('INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?)',(jid,rid,cid,kind,'QUEUED',detail,str(log),now(),None,None,None));return True
 
 def b_flow_cmd():
-    flow=BASE/'b_resume_model_flow_v1_1.py'
-    if not flow.exists(): flow=BASE/'b_resume_model_flow.py'
-    return [sys.executable,str(flow),'--db',str(DB),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate','CAND-B-002','--output-dir',str(BASE/'evidence'/'b_resume'/'CAND-B-002'),'--env',str(CROOT/'.env')]
+    # Dashboard orchestrates the already-proven B adapter; it does not migrate/reimplement it.
+    import os
+    configured=os.environ.get('GATE2_B_ADAPTER')
+    candidates=[
+        Path(configured) if configured else None,
+        LEGACY_OPERATOR/'b_resume_model_flow_v1_1.py',
+        LEGACY_OPERATOR/'b_resume_model_flow.py'
+    ]
+    flow=next((p for p in candidates if p and p.exists()),None)
+    if not flow:
+        raise FileNotFoundError('Existing B adapter not found. Expected gate2_operator_app_v1\\b_resume_model_flow_v1_1.py (or set GATE2_B_ADAPTER).')
+    # Keep B adapter state/evidence with the existing workflow location.
+    workflow_db=LEGACY_OPERATOR/'evidence'/'operator.db'
+    if not workflow_db.exists(): workflow_db=LEGACY_OPERATOR/'evidence'/'state.db'
+    return [sys.executable,str(flow),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate','CAND-B-002','--output-dir',str(LEGACY_OPERATOR/'evidence'/'b_resume'/'CAND-B-002'),'--env',str(CROOT/'.env')]
 
 def dispatcher():
     while True:
