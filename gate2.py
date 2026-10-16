@@ -67,7 +67,7 @@ def dispatcher():
             cmd=b_flow_cmd()
             with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
             c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
-            rel=BASE/'evidence'/'b_resume'/j['candidate_id']/'b_corrected_release.json'; gx=load_json(BASE/'evidence'/'b_resume'/j['candidate_id']/'b_regression_hold.json') or {}
+            rel=external_evidence_root()/'b_resume'/j['candidate_id']/'b_corrected_release.json'; gx=load_json(external_evidence_root()/'b_resume'/j['candidate_id']/'b_regression_hold.json') or {}
             if q.returncode==0 and rel.exists():
                 x=load_json(rel) or {};ver=x.get('candidate',{}).get('version','');c.execute("UPDATE candidates SET state='B_REVIEW',stage='B',version=?,detail='Corrected B release awaiting Human review' WHERE id=?",(ver,j['candidate_id']))
             elif gx.get('reason')=='CORRECTION_REGRESSION': c.execute("UPDATE candidates SET state='GOVERNANCE_HOLD',stage='B',detail='Correction regression blocked. Review failed B revision contract rules.' WHERE id=?",(j['candidate_id'],))
