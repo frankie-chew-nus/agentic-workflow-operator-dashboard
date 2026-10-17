@@ -218,7 +218,7 @@ def dispatcher():
             if j['kind']=='C_RUN':
                 dc=cx();cand=dc.execute("SELECT * FROM candidates WHERE id=?",(j['candidate_id'],)).fetchone();dc.close();ev=c_run_summary(cand) or {}
                 st=ev.get('state','C_SYSTEM_HOLD')
-                detail={'C_PASS':'Stage 1 PASS; Human review required before D','C_FAIL':'Stage 1 FAIL; candidate withheld from D','C_COMPLETE_REVIEW':'Stage 1 complete; Human review required','C_SEMANTIC_HOLD':'Semantic gate HOLD; C stopped before Stage 1','C_SYSTEM_HOLD':'C controller/system HOLD'}.get(st,'C controller result: '+st)
+                detail={'C_PASS':'Stage 1 PASS; Human review required before D','C_FAIL':'Stage 1 FAIL; candidate withheld from D','C_COMPLETE_REVIEW':'Stage 1 complete; Human review required','C_SEMANTIC_HOLD':'Semantic gate HOLD; C stopped before Stage 1','C_BUILD_GOVERNANCE_HOLD':'Atomic build governance HOLD; source authority mismatch blocked downstream code','C_SYSTEM_HOLD':'C controller/system HOLD'}.get(st,'C controller result: '+st)
                 c.execute("UPDATE candidates SET state=?,stage='C',detail=? WHERE id=?",(st,detail,j['candidate_id']))
                 c.commit();c.close();continue
             if j['kind']=='C_PREP_DISCOVERY':
@@ -417,9 +417,9 @@ def c_stage_body(candidate,job):
         return '<div class="stage-work"><h3>ACTION REQUIRED — START GOVERNED C</h3><p>The C preparation path is approved. Starting C will commission the dashboard controller to create the B-002-specific boundary package and execute only the approved existing C chain, stopping automatically on any HOLD/non-zero result and before D.</p>'+spec_details('View approved C preparation path',c_preparation_assessment())+form_buttons([('START_GOVERNED_C','Start governed C workflow')],'Human rationale to commission governed C execution')+'</div>'
     if st=='C_START_COMMISSIONED':
         return '<div class="stage-work running"><h3>C START COMMISSIONED — CONTROLLER WILL RESUME</h3><p>Your durable Human authority is recorded. The autonomous C controller will start/resume without another approval.</p></div>'
-    if st in ('C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_SEMANTIC_HOLD'):
+    if st in ('C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_SEMANTIC_HOLD','C_BUILD_GOVERNANCE_HOLD'):
         summary=c_run_summary(candidate) or {}
-        title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN'}.get(st,st)
+        title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN','C_BUILD_GOVERNANCE_HOLD':'C BUILD GOVERNANCE HOLD — DOWNSTREAM CODE NOT EXECUTED'}.get(st,st)
         return '<div class="stage-work '+('hold' if st!='C_PASS' else '')+'"><h3>'+title+'</h3><p>'+html.escape(candidate['detail'])+'</p>'+spec_details('View C run evidence summary',summary)+'</div>'
     if st=='C_SYSTEM_HOLD':
         return c_hold_html(candidate)
@@ -428,7 +428,7 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_START_COMMISSIONED','C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_SEMANTIC_HOLD','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_START_COMMISSIONED','C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_SEMANTIC_HOLD','C_BUILD_GOVERNANCE_HOLD','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
