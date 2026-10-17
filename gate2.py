@@ -535,6 +535,7 @@ def journey_html(r,cs,job):
         if k=='B' and candidate and candidate['stage']=='B': extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
         elif k=='C' and candidate: extra='<p><b>Candidate received:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+c_stage_body(candidate,job)
         elif k=='D': extra=d_sandbox_body()
+        elif k=='E': extra=e_sandbox_body()
         cards.append('<section class="journey-card '+cls+'"><div class="journey-head"><span class="stage-letter">'+k+'</span><div><b>'+title+'</b><div class="state">'+state+' · '+status+'</div></div></div><p><b>Owner:</b> '+owner+'</p>'+extra+'</section>')
     return '<div class="card"><h2>Full research journey</h2><div class="journey">'+'<div class="arrow">↓</div>'.join(cards)+'</div></div>'
 
@@ -544,6 +545,13 @@ def d_sandbox_body():
     warning='<div class="stage-work hold"><h3>D WORKFLOW DEVELOPMENT SANDBOX</h3><p><b>WORKFLOW TEST SANDBOX — NO PRODUCTION AUTHORITY</b></p><p>This exercises D using a typed test fixture. It does not assert C PASS, does not use B-002 as a production D input, and cannot authorize E.</p>'
     body=spec_details('View D sandbox evidence',ev) if ev else '<p>No D sandbox run recorded yet.</p>'
     return warning+body+form_buttons([('RUN_D_SANDBOX','Run D sandbox test')],'Human authorization to run isolated D workflow test fixture')+'</div>'
+
+def e_sandbox_body():
+    root=BASE/'evidence'/'e_sandbox_demo'
+    ev=load_json(root/'dashboard_summary.json') or {}
+    warning='<div class="stage-work hold"><h3>E WORKFLOW DEVELOPMENT SANDBOX</h3><p><b>COMMISSIONING TEST ONLY — NO PRODUCTION AUTHORITY</b></p><p>E audits typed D sandbox evidence and must block commissioning because its provenance is a workflow test fixture.</p>'
+    body=spec_details('View E sandbox audit evidence',ev) if ev else '<p>No E sandbox audit recorded yet. Run D sandbox first.</p>'
+    return warning+body+form_buttons([('RUN_E_SANDBOX','Run E commissioning sandbox audit')],'Human authorization to audit workflow-test D evidence; no commissioning authority')+'</div>'
 
 def render():
     c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cs=list(c.execute('SELECT * FROM candidates ORDER BY q'));job=active_job(c)
@@ -562,7 +570,11 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='RUN_D_SANDBOX':
+            if d=='RUN_E_SANDBOX':
+                decision(c,r['id'],cid,d,rat)
+                from e_dashboard_sandbox import execute
+                result=execute(BASE/'evidence'/'e_sandbox_demo',BASE/'evidence'/'d_sandbox_demo')
+            elif d=='RUN_D_SANDBOX':
                 decision(c,r['id'],cid,d,rat)
                 from d_dashboard_sandbox import execute
                 result=execute(BASE/'evidence'/'d_sandbox_demo')
