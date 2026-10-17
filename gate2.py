@@ -6,8 +6,10 @@ from urllib.parse import parse_qs
 BASE=Path(__file__).resolve().parent
 DB=BASE/'evidence'/'operator.db'
 PROJECT=BASE.parent
-CROOT=PROJECT/'gate2_c_controller'
-LEGACY_OPERATOR=PROJECT/'gate2_operator_app_v1'
+from operator_artifacts import resolve_paths
+OPERATOR_PATHS=resolve_paths(BASE)
+CROOT=Path(OPERATOR_PATHS['c_engine'])
+LEGACY_OPERATOR=Path(OPERATOR_PATHS['b_engine'])
 PORT=8787
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
