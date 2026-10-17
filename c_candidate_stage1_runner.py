@@ -11,8 +11,8 @@ def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def save(p,o):Path(p).write_text(json.dumps(o,indent=2),encoding="utf-8")
 def loadmod(p):
  s=importlib.util.spec_from_file_location("candidate_strategy",p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
-def progress(path,t0,phase,done,total,detail=""):
- o={"state":"STAGE1_RUNNING","phase":phase,"completed":done,"total":total,"percent":round(100*done/total,1) if total else 0,"elapsed_seconds":round(time.time()-t0,1),"heartbeat_epoch":time.time(),"detail":detail};save(path,o);print(json.dumps(o),flush=True)
+def progress(path,t0,run_id,phase,done,total,detail=""):
+ o={"state":"STAGE1_RUNNING","run_id":run_id,"phase":phase,"completed":done,"total":total,"percent":round(100*done/total,1) if total else 0,"elapsed_seconds":round(time.time()-t0,1),"heartbeat_epoch":time.time(),"detail":detail};save(path,o);print(json.dumps(o),flush=True)
 def max_lookback(schema):
  vals=[]
  for k,v in schema.items():
