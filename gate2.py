@@ -183,6 +183,11 @@ def c_source_authority_analysis(candidate):
     from c_source_authority import diagnose
     return diagnose(runroot)
 
+def c_stage1_diagnosis(candidate):
+    from c_stage1_diagnose import diagnose
+    root=BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']
+    return diagnose(root,c_run_log(candidate))
+
 def c_stage1_review(candidate):
     from c_stage1_evidence import inspect
     return inspect(c_run_summary(candidate) or {})
@@ -461,6 +466,8 @@ def c_stage_body(candidate,job):
         if st in ('C_COMPLETE_REVIEW','C_STAGE1_REVIEW_REQUIRED','C_STAGE1_EVIDENCE_HOLD'):
             inventory=c_stage1_review(candidate)
             actions=spec_details('View Stage 1 output evidence',inventory)
+            if inventory.get('review_status')=='MISSING_STAGE1_SUMMARY_HOLD' or st=='C_STAGE1_EVIDENCE_HOLD':
+                actions+=spec_details('View Stage 1 execution diagnosis',c_stage1_diagnosis(candidate))
             actions+='<p><b>Review status:</b> '+html.escape(inventory['review_status'])+'. No automatic C PASS or D handoff is authorized.</p>'
             if st=='C_STAGE1_REVIEW_REQUIRED':
                 actions+=form_buttons([('ACK_C_REVIEW','Record Stage 1 review acknowledgment')],'Human rationale for Stage 1 evidence review')
