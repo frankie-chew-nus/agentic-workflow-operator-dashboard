@@ -241,6 +241,47 @@ def stage_body(candidate,job):
     if st=='READY_FOR_C': return '<div class="stage-work"><h3>B COMPLETE — READY FOR C</h3><p>Human release recorded. C integration is the next backend milestone.</p></div>'
     return ''
 
+def c_mapping_candidates():
+    # Read-only inventory of likely authoritative C inputs. No C script is executed.
+    patterns={
+      'env':['.env'],
+      'spec':['inputs/*.json','*spec*.json','*candidate*.json'],
+      'release_record':['**/*release*.json'],
+      'config':['**/*config*.json'],
+      'plan':['**/*plan*.json'],
+      'manifest':['**/*manifest*.json'],
+      'semantic_pass':['**/*semantic*.json']
+    }
+    out={}
+    for key,pats in patterns.items():
+        seen=[]
+        for pat in pats:
+            for p in CROOT.glob(pat):
+                if p.is_file() and str(p) not in seen: seen.append(str(p))
+        out[key]=seen[:50]
+    return out
+
+def c_mapping_plan():
+    cand=(review_data() or {}).get('candidate',{})
+    return {
+      'state':'C_INPUT_MAPPING_REVIEW',
+      'candidate_id':cand.get('candidate_id'),
+      'version':cand.get('version'),
+      'authoritative_c_root':str(CROOT),
+      'required_inputs':{
+        'build_candidate_v2.py':['env','spec','candidate','workdir'],
+        'semantic_gate_v2.py':['release_record','output'],
+        'stage1_runner_v3.py':['config','plan','manifest','release_record','semantic_pass','output_dir']
+      },
+      'discovered_existing_artifacts':c_mapping_candidates(),
+      'policy':{
+        'read_only_inventory':True,
+        'no_command_executed':True,
+        'no_filename_guess_promoted_to_authority':True,
+        'human_review_before_start_c':True
+      }
+    }
+
 def c_execution_plan():
     ev=c_preflight_evidence() or {}
     cand=(review_data() or {}).get('candidate',{})
@@ -277,7 +318,10 @@ def c_stage_body(candidate,job):
         ev=c_preflight_evidence() or {};plan=c_execution_plan()
         return '<div class="stage-work"><h3>ACTION REQUIRED — REVIEW C EXECUTION PLAN</h3><p>Existing C CLI contracts were discovered without executing C. Review the frozen handoff and verified command sequence before commissioning Stage 1.</p>'+spec_details('View frozen B handoff specification',plan.get('frozen_b_handoff'))+spec_details('View verified C CLI contracts',ev)+spec_details('View C execution plan',plan)+form_buttons([('APPROVE_C_PLAN','Approve C execution plan')],'Human rationale for C execution plan')+'</div>'
     if st=='C_PLAN_APPROVED':
-        return '<div class="stage-work"><h3>C EXECUTION PLAN APPROVED</h3><p>Human approval recorded. The dashboard has not executed C yet.</p>'+spec_details('View approved C execution plan',c_execution_plan())+'<p><b>Next integration step:</b> deterministically map the frozen B v2.1.3 release to the existing C CLI input artifacts. No C command will run until that mapping is verified.</p></div>'
+        mapping=c_mapping_plan()
+        return '<div class="stage-work"><h3>ACTION REQUIRED — REVIEW C INPUT MAPPING</h3><p>Human C-plan approval is recorded. The dashboard has performed a read-only inventory of existing C artifacts; it has not executed C and has not promoted filename guesses into authority.</p>'+spec_details('View approved C execution plan',c_execution_plan())+spec_details('View discovered C input candidates',mapping)+'<p>Review the discovered artifacts before we bind exact files to the verified CLI arguments.</p>'+form_buttons([('APPROVE_C_MAPPING_REVIEW','Approve C mapping review')],'Human rationale for C input mapping review')+'</div>'
+    if st=='C_MAPPING_REVIEWED':
+        return '<div class="stage-work"><h3>C INPUT MAPPING REVIEWED</h3><p>No C command has executed. Exact artifact bindings are the next integration step.</p>'+spec_details('View reviewed C input candidates',c_mapping_plan())+'</div>'
     if st=='C_SYSTEM_HOLD':
         return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
     return ''
@@ -285,7 +329,7 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
@@ -316,7 +360,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='APPROVE_C_PLAN':
+            if d=='APPROVE_C_MAPPING_REVIEW':
+                decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_MAPPING_REVIEWED',stage='C',detail='Human reviewed read-only C input inventory; exact bindings still require verification' WHERE id=?",(cid,))
+            elif d=='APPROVE_C_PLAN':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_PLAN_APPROVED',stage='C',detail='Human approved verified C execution plan; awaiting deterministic input mapping' WHERE id=?",(cid,))
             elif d=='START_C_PREFLIGHT':
                 decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'C_PREFLIGHT','Read-only discovery of existing C CLI contracts')
