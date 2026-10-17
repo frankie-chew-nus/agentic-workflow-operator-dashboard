@@ -1,0 +1,254 @@
+import json,sqlite3,datetime,uuid,subprocess,threading,webbrowser,html,sys,hashlib
+from pathlib import Path
+from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
+from urllib.parse import parse_qs
+
+BASE=Path(__file__).resolve().parent
+DB=BASE/'evidence'/'operator.db'
+PROJECT=BASE.parent
+CROOT=PROJECT/'gate2_c_controller'
+LEGACY_OPERATOR=PROJECT/'gate2_operator_app_v1'
+PORT=8787
+
+def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def load_json(p):
+    try: return json.load(open(p,encoding='utf-8')) if Path(p).exists() else None
+    except Exception: return None
+
+def cx():
+    DB.parent.mkdir(parents=True,exist_ok=True)
+    c=sqlite3.connect(DB,timeout=30);c.row_factory=sqlite3.Row
+    c.executescript("""CREATE TABLE IF NOT EXISTS research(id TEXT PRIMARY KEY,title TEXT,state TEXT,stage TEXT);
+CREATE TABLE IF NOT EXISTS candidates(id TEXT PRIMARY KEY,research_id TEXT,state TEXT,stage TEXT,version TEXT,detail TEXT,q INTEGER);
+CREATE TABLE IF NOT EXISTS decisions(id TEXT PRIMARY KEY,research_id TEXT,candidate_id TEXT,decision TEXT,rationale TEXT,created_at TEXT);
+CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,research_id TEXT,candidate_id TEXT,kind TEXT,state TEXT,detail TEXT,log_path TEXT,created_at TEXT,started_at TEXT,finished_at TEXT,return_code INTEGER);
+CREATE TABLE IF NOT EXISTS artifacts(id TEXT PRIMARY KEY,candidate_id TEXT,kind TEXT,path TEXT,sha256 TEXT,created_at TEXT);""")
+    return c
+
+def decision(c,rid,cid,d,rat): c.execute('INSERT INTO decisions VALUES(?,?,?,?,?,?)',('DEC-'+uuid.uuid4().hex[:10].upper(),rid,cid,d,rat,now()))
+def init():
+    c=cx()
+    if not c.execute('SELECT 1 FROM research').fetchone():
+        rid='RES-XAUUSD';c.execute('INSERT INTO research VALUES(?,?,?,?)',(rid,'XAUUSD M1 Price Action','ACTIVE','B'))
+        for x in [('CAND-B-001','C_FAIL','C','v2.1.1','0/50 PASS',1),('CAND-B-002','B_REVIEW','B','v2.1.2','Corrected B release awaiting Human review',2),('CAND-B-003','C_FAIL','C','v2.1.1','0/7 PASS',3)]: c.execute('INSERT INTO candidates VALUES(?,?,?,?,?,?,?)',(x[0],rid,x[1],x[2],x[3],x[4],x[5]))
+        decision(c,rid,'CAND-B-002','RETURN_TO_B','Volatility expansion is not deterministically defined. Return to B for a corrected specification before C implementation.')
+    c.commit();c.close()
+
+def active_job(c): return c.execute("SELECT * FROM jobs WHERE state IN ('QUEUED','RUNNING') ORDER BY created_at LIMIT 1").fetchone()
+def queue(c,rid,cid,kind,detail):
+    if active_job(c): return False
+    jid='JOB-'+uuid.uuid4().hex[:10].upper();log=BASE/'evidence'/'logs'/(jid+'.log');log.parent.mkdir(parents=True,exist_ok=True)
+    c.execute('INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?)',(jid,rid,cid,kind,'QUEUED',detail,str(log),now(),None,None,None));return True
+
+def failed_rule_instruction():
+    hold=regression_hold() or {}
+    if hold.get('reason')!='CORRECTION_REGRESSION': return None
+    mapping={
+      'VERSION_MUST_BE':'Increment to the required next immutable patch version.',
+      'STRICT_NR_N_NOT_PRESERVED':'Preserve strict < NR-N semantics consistently throughout.',
+      'VOLATILITY_EXPANSION_RULE_MISSING':'Restore the deterministic rule: breakout candle range > average range of the preceding N candles.',
+      'VOLATILITY_EXPANSION_NOT_IN_ENTRY':'Require volatility-expansion confirmation in both long and short entry logic.',
+      'ATR_DEFAULT_SEARCH_RELATION_NOT_PRESERVED':'Preserve ATR(14) multiplier 2.0 as default/start within the authorized 1.5-3.0 range.'
+    }
+    items=[]
+    for f in hold.get('failures',[]):
+        key=str(f).split(':',1)[0];items.append(mapping.get(key,'Correct failed contract rule: '+str(f)))
+    return 'Correction is limited to these failed revision-contract rules. Preserve every passing rule and all previously accepted requirements. ' + ' '.join(items) + ' No other changes are authorized.'
+
+def sync_b_authority_to_existing_workflow(candidate_id):
+    # The dashboard owns the new Human decision; the existing B boundary reads its own
+    # workflow DB for RETURN_TO_B authority. Bridge the decision without migrating workflow logic.
+    dc=cx()
+    d=dc.execute("SELECT * FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(candidate_id,)).fetchone()
+    dc.close()
+    if not d: raise RuntimeError('No dashboard Human decision found for '+candidate_id)
+    workflow_db=LEGACY_OPERATOR/'evidence'/'operator.db'
+    if not workflow_db.exists(): workflow_db=LEGACY_OPERATOR/'evidence'/'state.db'
+    if not workflow_db.exists(): raise FileNotFoundError('Existing workflow decision DB not found')
+    wc=sqlite3.connect(workflow_db); wc.row_factory=sqlite3.Row
+    mapped='RETURN_TO_B' if d['decision'] in ('RETURN_TO_B','RETURN_FAILED_RULES','RETRY_B','RESUME_B') else d['decision']
+    bridge_id='DASH-'+d['id']
+    exists=wc.execute("SELECT 1 FROM decisions WHERE id=?",(bridge_id,)).fetchone()
+    if not exists:
+        wc.execute("INSERT INTO decisions(id,research_id,candidate_id,decision,rationale,created_at) VALUES(?,?,?,?,?,?)",
+                   (bridge_id,d['research_id'],candidate_id,mapped,d['rationale'],d['created_at']))
+        wc.commit()
+    wc.close()
+    return workflow_db
+
+def deterministic_b_patch_from_failed_rules(candidate_id):
+    # Patch-based correction: preserve the last valid candidate and deterministically
+    # apply only contract repairs already authorized by Human decisions.
+    rel=review_data() or {}
+    parent=rel.get('candidate')
+    hold=regression_hold() or {}
+    if not parent or hold.get('reason')!='CORRECTION_REGRESSION': return None
+    import copy,re
+    new=copy.deepcopy(parent)
+    failures=set(str(x).split(':',1)[0] for x in hold.get('failures',[]))
+    # Versioning belongs to the controller, never the model.
+    m=re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)',str(parent.get('version','')))
+    if not m: raise RuntimeError('Cannot deterministically increment candidate version')
+    new['version']=f"v{m.group(1)}.{m.group(2)}.{int(m.group(3))+1}"
+    ass=new.setdefault('operator_assumptions',{})
+    if 'STRICT_NR_N_NOT_PRESERVED' in failures:
+        ass['narrow_range_definition']='Current candle range (High - Low) is strictly less than the range of each of the prior N candles; N is searched only within 5-10 in C.'
+        new['candle_definition']='NR-N candle: current (High - Low) < (High - Low) for every candle in {t-1, t-2, ..., t-N}, where N is bounded to 5-10.'
+    if 'VOLATILITY_EXPANSION_RULE_MISSING' in failures:
+        ass['volatility_expansion_definition']='The range (High - Low) of the breakout candle must be greater than the average range (High - Low) of the preceding N candles used to identify the NR-N pattern.'
+    if 'VOLATILITY_EXPANSION_NOT_IN_ENTRY' in failures:
+        new['entry_logic']='Enter long if price exceeds High of the identified NR-N candle + breakout_buffer AND breakout candle range > average range of the preceding N candles; enter short if price falls below Low of the identified NR-N candle - breakout_buffer AND breakout candle range > average range of the preceding N candles.'
+    if 'ATR_DEFAULT_SEARCH_RELATION_NOT_PRESERVED' in failures:
+        new['exit_logic']='Trailing stop based on 2.0 * ATR(14) from current price; 2.0 is the default/starting value within the authorized trailing_atr_multiplier search range 1.5-3.0.'
+    return {'candidate':new,'patch_mode':'DETERMINISTIC_CONTRACT_REPAIR','parent_version':parent.get('version'),'applied_failures':sorted(failures)}
+
+def write_deterministic_patch(candidate_id):
+    obj=deterministic_b_patch_from_failed_rules(candidate_id)
+    if not obj: return None
+    out=LEGACY_OPERATOR/'evidence'/'b_resume'/candidate_id/'corrected_candidate.json'
+    out.parent.mkdir(parents=True,exist_ok=True)
+    out.write_text(json.dumps(obj,indent=2),encoding='utf-8')
+    return out
+
+def b_flow_cmd():
+    # Dashboard orchestrates the already-proven B adapter; it does not migrate/reimplement it.
+    import os
+    configured=os.environ.get('GATE2_B_ADAPTER')
+    candidates=[
+        Path(configured) if configured else None,
+        LEGACY_OPERATOR/'b_resume_model_flow_v1_1.py',
+        LEGACY_OPERATOR/'b_resume_model_flow.py'
+    ]
+    flow=next((p for p in candidates if p and p.exists()),None)
+    if not flow:
+        raise FileNotFoundError('Existing B adapter not found. Expected gate2_operator_app_v1\\b_resume_model_flow_v1_1.py (or set GATE2_B_ADAPTER).')
+    # Keep B adapter state/evidence with the existing workflow location.
+    workflow_db=sync_b_authority_to_existing_workflow('CAND-B-002')
+    return [sys.executable,str(flow),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate','CAND-B-002','--output-dir',str(LEGACY_OPERATOR/'evidence'/'b_resume'/'CAND-B-002'),'--env',str(CROOT/'.env')]
+
+def dispatcher():
+    while True:
+        try:
+            c=cx();j=c.execute("SELECT * FROM jobs WHERE state='QUEUED' ORDER BY created_at LIMIT 1").fetchone()
+            if not j: c.close();threading.Event().wait(1);continue
+            c.execute("UPDATE jobs SET state='RUNNING',started_at=? WHERE id=?",(now(),j['id']));c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],));c.commit();c.close()
+            latest=cx();ld=latest.execute("SELECT decision FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(j['candidate_id'],)).fetchone();latest.close()
+            if ld and ld['decision']=='RETURN_FAILED_RULES':
+                patched=write_deterministic_patch(j['candidate_id'])
+                if not patched: raise RuntimeError('Patch-mode repair requested but no regression evidence/parent release is available')
+                # Reuse the existing deterministic B boundary validator/freeze step; no model regeneration.
+                flow_dir=LEGACY_OPERATOR
+                workflow_db=sync_b_authority_to_existing_workflow(j['candidate_id'])
+                cmd=[sys.executable,str(flow_dir/'b_resume.py'),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate',j['candidate_id'],'--corrected-candidate',str(patched),'--output-dir',str(flow_dir/'evidence'/'b_resume'/j['candidate_id'])]
+            else:
+                cmd=b_flow_cmd()
+            with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
+            c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
+            rel=external_evidence_root()/'b_resume'/j['candidate_id']/'b_corrected_release.json'; gx=load_json(external_evidence_root()/'b_resume'/j['candidate_id']/'b_regression_hold.json') or {}
+            if q.returncode==0 and rel.exists():
+                x=load_json(rel) or {};ver=x.get('candidate',{}).get('version','');c.execute("UPDATE candidates SET state='B_REVIEW',stage='B',version=?,detail='Corrected B release awaiting Human review' WHERE id=?",(ver,j['candidate_id']))
+            elif gx.get('reason')=='CORRECTION_REGRESSION': c.execute("UPDATE candidates SET state='GOVERNANCE_HOLD',stage='B',detail='Correction regression blocked. Review failed B revision contract rules.' WHERE id=?",(j['candidate_id'],))
+            else: c.execute("UPDATE candidates SET state='SYSTEM_HOLD',stage='B',detail=? WHERE id=?",('B workflow failed. View '+j['log_path'],j['candidate_id']))
+            c.commit();c.close()
+        except Exception: threading.Event().wait(1)
+
+def external_evidence_root():
+    # Dashboard owns UI state, not workflow evidence. Prefer configured/existing workflow evidence.
+    import os
+    configured=os.environ.get('GATE2_OPERATOR_EVIDENCE_ROOT')
+    candidates=[Path(configured) if configured else None, PROJECT/'gate2_operator_app_v1'/'evidence', BASE/'evidence']
+    for p in candidates:
+        if p and (p/'b_resume'/'CAND-B-002').exists(): return p
+    return BASE/'evidence'
+
+def review_data(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'b_corrected_release.json')
+def attempted_data(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'corrected_candidate.json')
+def regression_hold(): return load_json(external_evidence_root()/'b_resume'/'CAND-B-002'/'b_regression_hold.json')
+def contract_data(): return load_json(BASE/'b002_revision_contract.json') or {'rules':[]}
+def expandable_log(path,running=False):
+    p=Path(path)
+    if running and not p.exists():
+        return '<details><summary>View execution log</summary><pre>Execution has started. The log file has not been created yet; refresh while B is running.</pre></details>'
+    try: text=p.read_text(encoding='utf-8',errors='replace') if p.exists() else 'Log file unavailable: '+str(p)
+    except Exception as e: text='Unable to read log: '+str(e)
+    return '<details><summary>'+('View execution log' if running else 'View failure log')+'</summary><pre>'+html.escape(text)+'</pre></details>'
+def spec_details(label,obj): return '<details><summary>'+html.escape(label)+'</summary><pre>'+html.escape(json.dumps(obj or {},indent=2))+'</pre></details>'
+
+def governance_html():
+    hold=regression_hold() or {};contract=contract_data();prev=(review_data() or {}).get('candidate',{});att=attempted_data() or {};att=att.get('candidate',att) if isinstance(att,dict) else {}
+    mapping={'VERSION_MUST_BE':'VERSION','STRICT_NR_N_NOT_PRESERVED':'STRICT_NR_N','VOLATILITY_EXPANSION_RULE_MISSING':'VOL_RULE','VOLATILITY_EXPANSION_NOT_IN_ENTRY':'VOL_ENTRY','ATR_DEFAULT_SEARCH_RELATION_NOT_PRESERVED':'ATR_DEFAULT'}
+    failed=set(mapping.get(str(f).split(':',1)[0],str(f).split(':',1)[0]) for f in hold.get('failures',[]));protected={'STRICT_NR_N','VOL_RULE','VOL_ENTRY','ATR_DEFAULT','HYPOTHESIS','EVIDENCE','PARAMETERS','DEPENDENCIES'}
+    if failed & protected: failed.add('NO_REGRESSION')
+    rows=[]
+    for r in contract.get('rules',[]):
+        bad=r['id'] in failed;diag=''
+        if bad: diag={'VERSION':'Expected '+str(hold.get('required_version') or ('v2.1.3' if hold.get('parent_version')=='v2.1.2' else 'next immutable patch version'))+'; attempted '+str(hold.get('attempted_version','')),'STRICT_NR_N':'Expected strict < semantics throughout.','VOL_RULE':'Expected breakout range > average range of preceding N candles.','VOL_ENTRY':'Expected volatility confirmation in both long and short entry logic.','NO_REGRESSION':'One or more previously accepted protected requirements regressed.'}.get(r['id'],'Contract check failed.')
+        rows.append('<tr class="'+('rule-fail' if bad else 'rule-pass')+'"><td>'+('✗' if bad else '✓')+'</td><td>'+html.escape(r['id'])+'</td><td>'+html.escape(r['label'])+'</td><td>'+html.escape(diag)+'</td></tr>')
+    hold_path=external_evidence_root()/'b_resume'/'CAND-B-002'/'b_regression_hold.json'
+    updated=datetime.datetime.fromtimestamp(hold_path.stat().st_mtime).astimezone().isoformat(timespec='seconds') if hold_path.exists() else 'unknown'
+    return '<div class="governance-panel"><h3>GOVERNANCE HOLD — CORRECTION REGRESSION</h3><p>The attempted B correction was blocked before release.</p><p><b>Latest attempt evidence updated:</b> '+html.escape(updated)+' · <b>Failed rules:</b> '+str(len(failed))+'</p><table class="rules"><tr><th></th><th>Rule</th><th>Requirement</th><th>Observed / expected</th></tr>'+''.join(rows)+'</table>'+spec_details('View previous valid specification',prev)+spec_details('View attempted specification',att)+spec_details('View raw failed-rule evidence',hold)+'</div>'
+
+def form_buttons(buttons,placeholder='Human rationale'):
+    bs=''.join('<button class="'+('bad' if v=='REJECT' else 'good' if v=='RELEASE_TO_C' else '')+'" name=decision value="'+v+'">'+html.escape(lbl)+'</button>' for v,lbl in buttons)
+    return '<form method=post action=/decide><textarea name=rationale required minlength=12 placeholder="'+html.escape(placeholder)+'"></textarea><input type=hidden name=candidate value=CAND-B-002>'+bs+'</form>'
+
+def stage_body(candidate,job):
+    if job and job['candidate_id']=='CAND-B-002': return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
+    if not candidate:return ''
+    st=candidate['state']
+    if st=='B_REVIEW':
+        cand=(review_data() or {}).get('candidate',{});vol=cand.get('operator_assumptions',{}).get('volatility_expansion_definition') or cand.get('operator_assumptions',{}).get('volatility_expansion_condition','')
+        return '<div class="stage-work"><h3>ACTION REQUIRED — HUMAN B→C REVIEW</h3><p><b>Hypothesis:</b> '+html.escape(cand.get('hypothesis',''))+'</p><p><b>Volatility expansion:</b> '+html.escape(vol)+'</p>'+spec_details('View corrected specification',cand)+form_buttons([('RETURN_TO_B','Return to B'),('REJECT','Reject'),('RELEASE_TO_C','Release to C')])+'</div>'
+    if st=='GOVERNANCE_HOLD': return '<div class="stage-work hold"><h3>ACTION REQUIRED — GOVERNANCE HOLD</h3>'+governance_html()+form_buttons([('RETURN_FAILED_RULES','Return to B with failed rules'),('REJECT','Reject candidate')])+'</div>'
+    if st=='SYSTEM_HOLD':
+        path=candidate['detail'].split('View ',1)[1] if 'View ' in candidate['detail'] else ''
+        return '<div class="stage-work hold"><h3>ACTION REQUIRED — SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p>'+expandable_log(path)+spec_details('View last corrected specification',(review_data() or {}).get('candidate',{}))+form_buttons([('RETRY_B','Retry same B work'),('REJECT','Reject candidate')])+'</div>'
+    if st=='WAITING_FOR_B': return '<div class="stage-work"><h3>ACTION REQUIRED — RESUME B</h3>'+form_buttons([('RESUME_B','Resume B'),('REJECT','Reject candidate')])+'</div>'
+    if st=='READY_FOR_C': return '<div class="stage-work"><h3>B COMPLETE — READY FOR C</h3><p>Human release recorded. C integration is the next backend milestone.</p></div>'
+    return ''
+
+def journey_html(r,cs,job):
+    # Display stage follows the governed handoff state, not only the research row's historical stage.
+    b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
+    display_stage='C' if b2 and b2['state']=='READY_FOR_C' else r['stage']
+    defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
+    order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
+    for i,k in enumerate(order):
+        title,owner=defs[k]
+        if i<idx: state,status,cls='FROZEN','HANDED OVER TO '+order[i+1],'done'
+        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else 'WORKFLOW ACTIVE')
+        else: state,status,cls='NOT STARTED','Awaiting '+order[i-1]+' handoff','future'
+        extra=('<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)) if k=='B' and candidate else ''
+        cards.append('<section class="journey-card '+cls+'"><div class="journey-head"><span class="stage-letter">'+k+'</span><div><b>'+title+'</b><div class="state">'+state+' · '+status+'</div></div></div><p><b>Owner:</b> '+owner+'</p>'+extra+'</section>')
+    return '<div class="card"><h2>Full research journey</h2><div class="journey">'+'<div class="arrow">↓</div>'.join(cards)+'</div></div>'
+
+def render():
+    c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cs=list(c.execute('SELECT * FROM candidates ORDER BY q'));job=active_job(c)
+    b='<div class=card><small>ACTIVE RESEARCH</small><h1>'+html.escape(r['title'])+'</h1></div>'+journey_html(r,cs,job)
+    b+='<div class=card><h2>Candidate pipeline</h2><table><tr><th>ID</th><th>Version</th><th>Stage</th><th>State</th><th>Detail</th></tr>'
+    for x in cs:b+='<tr'+(' class="candidate-active"' if x['id']=='CAND-B-002' else '')+'><td>'+x['id']+'</td><td>'+html.escape(x['version'] or '')+'</td><td>'+x['stage']+'</td><td>'+x['state']+'</td><td>'+html.escape(x['detail'])+'</td></tr>'
+    b+='</table></div><div class=card><h2>Human decision ledger</h2><table><tr><th>Candidate</th><th>Decision</th><th>Rationale</th></tr>'
+    for d in c.execute('SELECT * FROM decisions ORDER BY created_at DESC'):b+='<tr><td>'+d['candidate_id']+'</td><td>'+d['decision']+'</td><td>'+html.escape(d['rationale'])+'</td></tr>'
+    b+='</table></div>';c.close()
+    css='body{font-family:Segoe UI,Arial;background:#f3f5f7;margin:0}header{background:#111827;color:white;padding:18px}main{max-width:1120px;margin:auto;padding:22px}.card{background:white;padding:18px;margin:14px 0;border:1px solid #ddd;border-radius:12px}.journey{display:grid;gap:10px}.journey-card{border:1px solid #d1d5db;border-radius:10px;padding:14px}.done{background:#f0fdf4}.active{border:2px solid #2563eb;background:#eff6ff}.future{background:#f3f4f6;color:#6b7280}.journey-head{display:flex;gap:12px;align-items:center}.stage-letter{display:inline-flex;width:42px;height:42px;border-radius:50%;align-items:center;justify-content:center;background:#111827;color:white;font-weight:700}.state{font-size:13px;font-weight:700}.arrow{text-align:center}.stage-work{margin-top:16px;padding-top:16px;border-top:2px solid #93c5fd}.hold{border-top-color:#d97706}.candidate-active{background:#eff6ff}textarea{width:96%;min-height:75px;padding:10px}button{padding:10px 14px;margin:8px 5px 0 0;background:#2563eb;color:white;border:0;border-radius:6px}.good{background:#15803d}.bad{background:#b91c1c}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #ddd;text-align:left}pre{white-space:pre-wrap;background:#f8fafc;padding:12px;max-height:520px;overflow:auto}details{margin:12px 0;border:1px solid #bfdbfe;border-radius:8px;background:white;padding:10px}.rule-pass{background:#f0fdf4}.rule-fail{background:#fef2f2;font-weight:600}'
+    return '<html><head><meta charset=utf-8><style>'+css+'</style></head><body><header><h2>Gate 2 Operator App</h2></header><main>'+b+'</main></body></html>'
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        b=render().encode();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.end_headers();self.wfile.write(b)
+    def do_POST(self):
+        n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
+        if x and len(rat)>=12 and not active_job(c):
+            if d in ('RETURN_TO_B','RESUME_B','RETRY_B','RETURN_FAILED_RULES'):
+                if d=='RETURN_FAILED_RULES':
+                    auto=failed_rule_instruction()
+                    if auto: rat=(rat+'\n\nAUTO FAILED-RULE INSTRUCTION: '+auto).strip()
+                decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'B_RESUME','Governed B correction via configured model endpoint')
+            elif d=='REJECT':decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='REJECTED',detail='Human rejected candidate' WHERE id=?",(cid,))
+            elif d=='RELEASE_TO_C':decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='READY_FOR_C',stage='B',detail='Human released corrected B candidate to C queue' WHERE id=?",(cid,))
+        c.commit();c.close();self.send_response(303);self.send_header('Location','/');self.end_headers()
+    def log_message(self,*a):pass
+
+if __name__=='__main__':
+    init();threading.Thread(target=dispatcher,daemon=True).start();u=f'http://127.0.0.1:{PORT}/';print(u);threading.Timer(.5,lambda:webbrowser.open(u)).start();ThreadingHTTPServer(('127.0.0.1',PORT),H).serve_forever()
