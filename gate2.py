@@ -146,6 +146,14 @@ def c_preflight_cmd():
 def c_preflight_evidence():
     return load_json(BASE/'evidence'/'c_preflight.json')
 
+def c_prepare_discovery_cmd():
+    script=BASE/'c_prepare_discovery.py'
+    if not script.exists(): raise FileNotFoundError('C preparation discovery adapter missing')
+    return [sys.executable,str(script),'--c-root',str(CROOT)]
+
+def c_prepare_discovery_evidence():
+    return load_json(BASE/'evidence'/'c_preparation_discovery.json')
+
 def dispatcher():
     while True:
         try:
@@ -157,7 +165,9 @@ def dispatcher():
             else:
                 c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],))
             c.commit();c.close()
-            if j['kind']=='C_PREFLIGHT':
+            if j['kind']=='C_PREP_DISCOVERY':
+                cmd=c_prepare_discovery_cmd()
+            elif j['kind']=='C_PREFLIGHT':
                 cmd=c_preflight_cmd()
             else:
                 latest=cx();ld=latest.execute("SELECT decision FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(j['candidate_id'],)).fetchone();latest.close()
@@ -171,6 +181,13 @@ def dispatcher():
                     cmd=b_flow_cmd()
             with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
             c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
+            if j['kind']=='C_PREP_DISCOVERY':
+                ev=c_prepare_discovery_evidence() or {}
+                if q.returncode==0 and ev.get('state')=='C_PREPARATION_DISCOVERY_READY':
+                    c.execute("UPDATE candidates SET state='C_PREP_DISCOVERED',stage='C',detail='Existing C preparation/freezing command contracts discovered read-only' WHERE id=?",(j['candidate_id'],))
+                else:
+                    c.execute("UPDATE candidates SET state='C_SYSTEM_HOLD',stage='C',detail=? WHERE id=?",('C preparation discovery failed. View '+j['log_path'],j['candidate_id']))
+                c.commit();c.close();continue
             if j['kind']=='C_PREFLIGHT':
                 ev=c_preflight_evidence() or {}
                 if q.returncode==0 and ev.get('state')=='C_PREFLIGHT_READY':
@@ -321,7 +338,9 @@ def c_stage_body(candidate,job):
         mapping=c_mapping_plan()
         return '<div class="stage-work"><h3>ACTION REQUIRED — REVIEW C INPUT MAPPING</h3><p>Human C-plan approval is recorded. The dashboard has performed a read-only inventory of existing C artifacts; it has not executed C and has not promoted filename guesses into authority.</p>'+spec_details('View approved C execution plan',c_execution_plan())+spec_details('View discovered C input candidates',mapping)+'<p>Review the discovered artifacts before we bind exact files to the verified CLI arguments.</p>'+form_buttons([('APPROVE_C_MAPPING_REVIEW','Approve C mapping review')],'Human rationale for C input mapping review')+'</div>'
     if st=='C_MAPPING_REVIEWED':
-        return '<div class="stage-work"><h3>C INPUT MAPPING REVIEWED</h3><p>No C command has executed. Exact artifact bindings are the next integration step.</p>'+spec_details('View reviewed C input candidates',c_mapping_plan())+'</div>'
+        return '<div class="stage-work hold"><h3>C BINDING HOLD — B-002 INPUTS NOT YET FROZEN</h3><p>Historical B-001/B-003 artifacts will not be reused for CAND-B-002 v2.1.3.</p>'+spec_details('View reviewed C input candidates',c_mapping_plan())+form_buttons([('DISCOVER_C_PREP','Discover existing C preparation commands')],'Human rationale for read-only C preparation discovery')+'</div>'
+    if st=='C_PREP_DISCOVERED':
+        return '<div class="stage-work"><h3>C PREPARATION COMMANDS DISCOVERED</h3><p>No C build or backtest has executed. Review the existing preparation/freezing command contracts.</p>'+spec_details('View C preparation command contracts',c_prepare_discovery_evidence())+'</div>'
     if st=='C_SYSTEM_HOLD':
         return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
     return ''
@@ -329,7 +348,7 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
@@ -360,7 +379,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='APPROVE_C_MAPPING_REVIEW':
+            if d=='DISCOVER_C_PREP':
+                decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'C_PREP_DISCOVERY','Read-only discovery of existing C preparation/freezing commands')
+            elif d=='APPROVE_C_MAPPING_REVIEW':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_MAPPING_REVIEWED',stage='C',detail='Human reviewed read-only C input inventory; exact bindings still require verification' WHERE id=?",(cid,))
             elif d=='APPROVE_C_PLAN':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_PLAN_APPROVED',stage='C',detail='Human approved verified C execution plan; awaiting deterministic input mapping' WHERE id=?",(cid,))
