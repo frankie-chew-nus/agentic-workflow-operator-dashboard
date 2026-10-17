@@ -126,6 +126,16 @@ try:
                       "version":a.version,"preflight":pre,"release_record":str(release_record),
                       "semantic_pass":str(semantic),"config":str(config),"plan":str(plan)})
         print(json.dumps(load(summary),indent=2));raise SystemExit(22)
+    from c_stage1_interface import validate as validate_stage1_interface
+    interface=validate_stage1_interface(release_record,plan,croot/"stage1_runner_v3.py")
+    save(runroot/"stage1_interface.json",interface)
+    if not interface["safe_to_run"]:
+        save(summary,{"state":"C_STAGE1_INTERFACE_HOLD","candidate_id":a.candidate,
+                      "version":a.version,"interface":interface,
+                      "release_record":str(release_record),"semantic_pass":str(semantic),
+                      "config":str(config),"plan":str(plan),
+                      "reason":"Released strategy, frozen plan, and Stage1 runner interface are incompatible"})
+        print(json.dumps(load(summary),indent=2));raise SystemExit(23)
     output=runroot/"stage1_output"
     run([sys.executable,str(croot/"stage1_runner_v3.py"),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
     from c_stage1_resolver import resolve_stage1
