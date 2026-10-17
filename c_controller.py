@@ -55,7 +55,23 @@ try:
     buildroot=runroot/"build"
     run([sys.executable,str(croot/"atomic_build_release_clean.py"),"--spec",str(spec),"--candidate",a.candidate,"--run-root",str(buildroot)],croot,log)
     release_record=newest(buildroot,["implementation_release.json","*release*.json"])
-    if not release_record: raise RuntimeError("Atomic build completed but no release record was found")
+    if not release_record:
+        # The clean atomic wrapper can legitimately stop before candidate code/release
+        # when its own source-hash authority check detects a mismatch. Preserve that
+        # governed HOLD rather than misclassifying it as a missing-file system error.
+        holds=list(buildroot.rglob("*.json"))
+        hold_obj=None;hold_path=None
+        for hp in sorted(holds,key=lambda p:p.stat().st_mtime,reverse=True):
+            try:
+                obj=load(hp)
+            except Exception:
+                continue
+            if isinstance(obj,dict) and (str(obj.get("state","")).upper().startswith("HOLD") or obj.get("reason")):
+                hold_obj=obj;hold_path=hp;break
+        if hold_obj:
+            save(summary,{"state":"C_BUILD_GOVERNANCE_HOLD","candidate_id":a.candidate,"version":a.version,"step":"atomic_build_release_clean","hold_evidence":str(hold_path),"hold":hold_obj,"boundary":str(runroot/"c_boundary.json")})
+            print(json.dumps(load(summary),indent=2));raise SystemExit(21)
+        raise RuntimeError("Atomic build completed but produced neither release record nor governed HOLD evidence")
 
     semantic=runroot/"semantic_pass.json"
     run([sys.executable,str(croot/"release_semantic_gate.py"),"--release-record",str(release_record),"--spec",str(spec),"--output",str(semantic)],croot,log)
