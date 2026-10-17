@@ -5,7 +5,7 @@ No raw database, logs, strategy code, credentials, or market data are copied.
 """
 import argparse,csv,hashlib,io,json,subprocess,unittest
 from pathlib import Path
-from gate2_proof_table import csv_text,proof_rows
+from gate2_proof_table import COLUMNS,proof_rows
 
 FOLDERS=("01_governance_decisions","02_c_execution","03_d_e_sandbox",
          "04_automated_tests","05_proof_registry","06_operator_judgement")
@@ -17,6 +17,9 @@ def build(root,output):
  out.mkdir(parents=True,exist_ok=True)
  for folder in FOLDERS:(out/folder).mkdir()
  rows=proof_rows(root)
+ for row in rows:
+  if row["claim_id"].startswith("DISC-HUMAN-"):
+   row["human_decision"]="REDACTED: inspect local decision ledger"
  # Keep decisions to action/time metadata only; rationales can contain sensitive details.
  decisions=[{"claim_id":x["claim_id"],"candidate_id":x["candidate_id"],
              "action":x["observed"],"artifact_verification":x["artifact_verification"]}
@@ -31,7 +34,8 @@ def build(root,output):
  for rel,obj in snapshots.items():
   b=(json.dumps(obj,indent=2,ensure_ascii=True)+"\n").encode("utf-8")
   (out/rel).write_bytes(b);manifest.append({"path":rel,"sha256":sha(b),"bytes":len(b)})
- csvdata=csv_text(root).encode("utf-8");rel="05_proof_registry/gate2_proof.csv"
+ buffer=io.StringIO();writer=csv.DictWriter(buffer,fieldnames=COLUMNS);writer.writeheader();writer.writerows(rows)
+ csvdata=buffer.getvalue().encode("utf-8");rel="05_proof_registry/gate2_proof.csv"
  (out/rel).write_bytes(csvdata);manifest.append({"path":rel,"sha256":sha(csvdata),"bytes":len(csvdata)})
  note=("GATE 2 EVIDENCE ARCHIVE — REVIEW REQUIRED\n"
        "This is a sanitized index, NOT a copy of raw source evidence.\n"
