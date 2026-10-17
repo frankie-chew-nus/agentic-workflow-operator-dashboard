@@ -20,5 +20,5 @@ class ArchiveV2Tests(unittest.TestCase):
    root=Path(t)/"evidence";root.mkdir();out=Path(t)/"archive"
    build(root,out)
    x=json.loads((out/"06_operator_judgement/judgement_record_template.json").read_text())
-   self.assertEqual(x["status"],"HUMAN_INPUT_REQUIRED");self.assertEqual(x["entries"],[])
+   self.assertEqual(x["status"],"HUMAN_REVIEW_REQUIRED");self.assertTrue(x["entries"]);self.assertTrue(all(e["human_statement"] is None for e in x["entries"]))
 if __name__=="__main__":unittest.main()
