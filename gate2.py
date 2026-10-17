@@ -209,8 +209,11 @@ def stage_body(candidate,job):
     return ''
 
 def journey_html(r,cs,job):
+    # Display stage follows the governed handoff state, not only the research row's historical stage.
+    b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
+    display_stage='C' if b2 and b2['state']=='READY_FOR_C' else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
-    order='ABCDE';idx=order.index(r['stage']);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
+    order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
         title,owner=defs[k]
         if i<idx: state,status,cls='FROZEN','HANDED OVER TO '+order[i+1],'done'
