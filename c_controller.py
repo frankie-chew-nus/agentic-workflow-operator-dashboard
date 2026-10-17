@@ -28,7 +28,7 @@ def newest(root,names):
     for n in names:hits.extend(Path(root).rglob(n))
     hits=[p for p in hits if p.is_file()]
     return max(hits,key=lambda p:p.stat().st_mtime) if hits else None
-from c_gate_predicates import semantic_pass,stage1_completed
+from c_gate_predicates import semantic_pass,stage1_completed,semantic_repair_authorized
 
 ap=argparse.ArgumentParser()
 ap.add_argument("--c-root",required=True);ap.add_argument("--legacy-evidence",required=True)
@@ -79,9 +79,7 @@ try:
         # HOLD tied to the exact frozen implementation release. Never patch a
         # released module in place or substitute a hash.
         repairs=[]
-        if (sem.get("state")=="SEMANTIC_GATE_HOLD"
-            and sem.get("module_sha256")==load(release_record).get("module_sha256")
-            and sem.get("failure_count",0)>0):
+        if semantic_repair_authorized(sem,load(release_record)):
             repairroot=runroot/"semantic_repairs"
             repairroot.mkdir(parents=True,exist_ok=True)
             run([sys.executable,str(croot/"semantic_repair_release.py"),
