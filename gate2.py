@@ -432,7 +432,13 @@ def c_execution_plan():
 
 def c_stage_body(candidate,job):
     if job and job['kind'] in ('C_PREFLIGHT','C_PREP_DISCOVERY','C_RUN'):
-        return '<div class="stage-work running"><h3>'+('C WORKFLOW — RUNNING · NO ACTION REQUIRED' if job['kind']=='C_RUN' else 'C PREFLIGHT — RUNNING · NO ACTION REQUIRED')+'</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True,stage='C')+'<button onclick="location.reload()">Refresh</button></div>'
+        prog={}
+        if job['kind']=='C_RUN' and candidate:
+            prog=load_json(BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']/'stage1_output'/'progress.json') or {}
+        phtml=''
+        if prog:
+            phtml='<p><b>Stage 1 progress:</b> '+html.escape(str(prog.get('phase','')))+' · '+html.escape(str(prog.get('completed',0)))+'/'+html.escape(str(prog.get('total',0)))+' · '+html.escape(str(prog.get('percent',0)))+'% · elapsed '+html.escape(str(prog.get('elapsed_seconds',0)))+'s</p><p>'+html.escape(str(prog.get('detail','')))+'. Refresh to update.</p>'
+        return '<div class="stage-work running"><h3>'+('C WORKFLOW — RUNNING · NO ACTION REQUIRED' if job['kind']=='C_RUN' else 'C PREFLIGHT — RUNNING · NO ACTION REQUIRED')+'</h3><p>'+html.escape(job['detail'])+'</p>'+phtml+expandable_log(job['log_path'],running=True,stage='C')+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate: return ''
     st=candidate['state']
     if st=='READY_FOR_C':
