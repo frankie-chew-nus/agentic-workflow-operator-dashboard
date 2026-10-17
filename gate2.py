@@ -259,13 +259,13 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state']=='READY_FOR_C' else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
         title,owner=defs[k]
         if i<idx: state,status,cls='FROZEN','HANDED OVER TO '+order[i+1],'done'
-        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else 'WORKFLOW ACTIVE')
+        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else ('PREFLIGHT COMPLETE · READY TO INTEGRATE' if k=='C' and candidate and candidate['state']=='C_READY_TO_INTEGRATE' else 'WORKFLOW ACTIVE'))
         else: state,status,cls='NOT STARTED','Awaiting '+order[i-1]+' handoff','future'
         extra=''
         if k=='B' and candidate: extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
