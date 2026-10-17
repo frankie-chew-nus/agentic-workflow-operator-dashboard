@@ -77,6 +77,40 @@ def sync_b_authority_to_existing_workflow(candidate_id):
     wc.close()
     return workflow_db
 
+def deterministic_b_patch_from_failed_rules(candidate_id):
+    # Patch-based correction: preserve the last valid candidate and deterministically
+    # apply only contract repairs already authorized by Human decisions.
+    rel=review_data() or {}
+    parent=rel.get('candidate')
+    hold=regression_hold() or {}
+    if not parent or hold.get('reason')!='CORRECTION_REGRESSION': return None
+    import copy,re
+    new=copy.deepcopy(parent)
+    failures=set(str(x).split(':',1)[0] for x in hold.get('failures',[]))
+    # Versioning belongs to the controller, never the model.
+    m=re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)',str(parent.get('version','')))
+    if not m: raise RuntimeError('Cannot deterministically increment candidate version')
+    new['version']=f"v{m.group(1)}.{m.group(2)}.{int(m.group(3))+1}"
+    ass=new.setdefault('operator_assumptions',{})
+    if 'STRICT_NR_N_NOT_PRESERVED' in failures:
+        ass['narrow_range_definition']='Current candle range (High - Low) is strictly less than the range of each of the prior N candles; N is searched only within 5-10 in C.'
+        new['candle_definition']='NR-N candle: current (High - Low) < (High - Low) for every candle in {t-1, t-2, ..., t-N}, where N is bounded to 5-10.'
+    if 'VOLATILITY_EXPANSION_RULE_MISSING' in failures:
+        ass['volatility_expansion_definition']='The range (High - Low) of the breakout candle must be greater than the average range (High - Low) of the preceding N candles used to identify the NR-N pattern.'
+    if 'VOLATILITY_EXPANSION_NOT_IN_ENTRY' in failures:
+        new['entry_logic']='Enter long if price exceeds High of the identified NR-N candle + breakout_buffer AND breakout candle range > average range of the preceding N candles; enter short if price falls below Low of the identified NR-N candle - breakout_buffer AND breakout candle range > average range of the preceding N candles.'
+    if 'ATR_DEFAULT_SEARCH_RELATION_NOT_PRESERVED' in failures:
+        new['exit_logic']='Trailing stop based on 2.0 * ATR(14) from current price; 2.0 is the default/starting value within the authorized trailing_atr_multiplier search range 1.5-3.0.'
+    return {'candidate':new,'patch_mode':'DETERMINISTIC_CONTRACT_REPAIR','parent_version':parent.get('version'),'applied_failures':sorted(failures)}
+
+def write_deterministic_patch(candidate_id):
+    obj=deterministic_b_patch_from_failed_rules(candidate_id)
+    if not obj: return None
+    out=LEGACY_OPERATOR/'evidence'/'b_resume'/candidate_id/'corrected_candidate.json'
+    out.parent.mkdir(parents=True,exist_ok=True)
+    out.write_text(json.dumps(obj,indent=2),encoding='utf-8')
+    return out
+
 def b_flow_cmd():
     # Dashboard orchestrates the already-proven B adapter; it does not migrate/reimplement it.
     import os
@@ -99,7 +133,16 @@ def dispatcher():
             c=cx();j=c.execute("SELECT * FROM jobs WHERE state='QUEUED' ORDER BY created_at LIMIT 1").fetchone()
             if not j: c.close();threading.Event().wait(1);continue
             c.execute("UPDATE jobs SET state='RUNNING',started_at=? WHERE id=?",(now(),j['id']));c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],));c.commit();c.close()
-            cmd=b_flow_cmd()
+            latest=cx();ld=latest.execute("SELECT decision FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(j['candidate_id'],)).fetchone();latest.close()
+            if ld and ld['decision']=='RETURN_FAILED_RULES':
+                patched=write_deterministic_patch(j['candidate_id'])
+                if not patched: raise RuntimeError('Patch-mode repair requested but no regression evidence/parent release is available')
+                # Reuse the existing deterministic B boundary validator/freeze step; no model regeneration.
+                flow_dir=LEGACY_OPERATOR
+                workflow_db=sync_b_authority_to_existing_workflow(j['candidate_id'])
+                cmd=[sys.executable,str(flow_dir/'b_resume.py'),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate',j['candidate_id'],'--corrected-candidate',str(patched),'--output-dir',str(flow_dir/'evidence'/'b_resume'/j['candidate_id'])]
+            else:
+                cmd=b_flow_cmd()
             with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
             c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
             rel=external_evidence_root()/'b_resume'/j['candidate_id']/'b_corrected_release.json'; gx=load_json(external_evidence_root()/'b_resume'/j['candidate_id']/'b_regression_hold.json') or {}
