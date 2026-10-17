@@ -11,3 +11,14 @@ def semantic_pass(obj):
 
 def stage1_completed(obj):
     return isinstance(obj,dict) and obj.get("state")=="STAGE1_COMPLETE"
+
+def semantic_repair_authorized(semantic,release):
+    return (
+        isinstance(semantic,dict) and isinstance(release,dict)
+        and semantic.get("state")=="SEMANTIC_GATE_HOLD"
+        and type(semantic.get("failure_count")) is int
+        and semantic["failure_count"]>0
+        and isinstance(release.get("module_sha256"),str)
+        and len(release["module_sha256"])==64
+        and semantic.get("module_sha256")==release["module_sha256"]
+    )
