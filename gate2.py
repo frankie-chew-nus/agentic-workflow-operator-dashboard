@@ -244,7 +244,7 @@ def form_buttons(buttons,placeholder='Human rationale'):
     return '<form method=post action=/decide><textarea name=rationale required minlength=12 placeholder="'+html.escape(placeholder)+'"></textarea><input type=hidden name=candidate value=CAND-B-002>'+bs+'</form>'
 
 def stage_body(candidate,job):
-    if job and job['candidate_id']=='CAND-B-002': return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
+    if job and job['candidate_id']=='CAND-B-002' and str(job['kind']).startswith('B_'): return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate:return ''
     st=candidate['state']
     if st=='B_REVIEW':
@@ -324,7 +324,7 @@ def c_execution_plan():
     }
 
 def c_stage_body(candidate,job):
-    if job and job['kind']=='C_PREFLIGHT':
+    if job and job['kind'] in ('C_PREFLIGHT','C_PREP_DISCOVERY'):
         return '<div class="stage-work running"><h3>C PREFLIGHT — RUNNING · NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate: return ''
     st=candidate['state']
@@ -354,7 +354,7 @@ def journey_html(r,cs,job):
     for i,k in enumerate(order):
         title,owner=defs[k]
         if i<idx: state,status,cls='FROZEN','HANDED OVER TO '+order[i+1],'done'
-        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else ('PREFLIGHT COMPLETE · READY TO INTEGRATE' if k=='C' and candidate and candidate['state']=='C_READY_TO_INTEGRATE' else 'WORKFLOW ACTIVE'))
+        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job and ((k=='B' and str(job['kind']).startswith('B_')) or (k=='C' and str(job['kind']).startswith('C_'))) else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else ('PREFLIGHT COMPLETE · READY TO INTEGRATE' if k=='C' and candidate and candidate['state']=='C_READY_TO_INTEGRATE' else 'WORKFLOW ACTIVE'))
         else: state,status,cls='NOT STARTED','Awaiting '+order[i-1]+' handoff','future'
         extra=''
         if k=='B' and candidate: extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
