@@ -181,6 +181,10 @@ def c_source_authority_analysis(candidate):
     from c_source_authority import diagnose
     return diagnose(runroot)
 
+def c_stage1_review(candidate):
+    from c_stage1_evidence import inspect
+    return inspect(c_run_summary(candidate) or {})
+
 def c_hold_html(candidate):
     summary=c_run_summary(candidate) or {}
     log=c_run_log(candidate)
@@ -452,7 +456,12 @@ def c_stage_body(candidate,job):
             except Exception as e: diagnosis='<p>Diagnosis unavailable: '+html.escape(str(e))+'</p>'
         title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN','C_BUILD_GOVERNANCE_HOLD':'C BUILD GOVERNANCE HOLD — DOWNSTREAM CODE NOT EXECUTED'}.get(st,st)
         actions=''
-        if st=='C_BUILD_GOVERNANCE_HOLD':
+        if st=='C_COMPLETE_REVIEW':
+            inventory=c_stage1_review(candidate)
+            actions=spec_details('View Stage 1 output evidence',inventory)
+            actions+='<p><b>Review status:</b> '+html.escape(inventory['review_status'])+'. No automatic C PASS or D handoff is authorized.</p>'
+            actions+=form_buttons([('ACK_C_REVIEW','Record Stage 1 review acknowledgment')],'Human rationale for Stage 1 evidence review')
+        elif st=='C_BUILD_GOVERNANCE_HOLD':
             actions='<p>The builder reported a text hash instead of the exact generated file bytes. The proposed repair changes only the builder hash-reporting code, preserves the atomic verifier, and backs up the original file.</p>'+form_buttons([('REPAIR_C_SOURCE_AND_RETRY','Apply guarded source-hash repair and retry C')],'Human authorization for C source-hash repair')
         elif st=='C_SEMANTIC_HOLD':
             sem=load_json(summary.get('semantic','')) or {}
@@ -496,7 +505,10 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='RETRY_C_SEMANTIC_REPAIR' and x['state']=='C_SEMANTIC_HOLD':
+            if d=='ACK_C_REVIEW' and x['state']=='C_COMPLETE_REVIEW':
+                decision(c,r['id'],cid,d,rat)
+                c.execute("UPDATE candidates SET detail='Human acknowledged Stage 1 evidence; C remains in review pending explicit outcome classification' WHERE id=?",(cid,))
+            elif d=='RETRY_C_SEMANTIC_REPAIR' and x['state']=='C_SEMANTIC_HOLD':
                 decision(c,r['id'],cid,d,rat)
                 c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human authorized governed semantic repair retry' WHERE id=?",(cid,))
                 queue(c,r['id'],cid,'C_RUN','Governed C retry with one immutable semantic repair attempt')
