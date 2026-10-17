@@ -23,6 +23,11 @@ def main():
     if not all(checks.values()):
         print(json.dumps({"state":"HOLD","reason":"PRE_RUN_IDENTITY_FAILURE","checks":checks},indent=2));raise SystemExit(20)
     # Reuse authoritative market-data source policy, not legacy strategy logic.
+    import sys
+    # The authoritative market-data package lives with the existing C engine.
+    # Resolve it from the manifest location rather than relying on cwd/PYTHONPATH.
+    croot=Path(a.manifest).resolve().parents[2]
+    if str(croot) not in sys.path: sys.path.insert(0,str(croot))
     from market_data.policy import create_source
     bars=create_source("C","CSV",path=man["raw_file"]).get_bars();m=loadmod(mp)
     out=Path(a.output_dir);out.mkdir(parents=True,exist_ok=True)
