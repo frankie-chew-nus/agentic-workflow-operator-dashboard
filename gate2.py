@@ -534,10 +534,22 @@ def journey_html(r,cs,job):
         extra=''
         if k=='B' and candidate and candidate['stage']=='B': extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
         elif k=='C' and candidate: extra='<p><b>Candidate received:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+c_stage_body(candidate,job)
-        elif k=='D': extra=d_sandbox_body()
-        elif k=='E': extra=e_sandbox_body()
+        elif k=='D': extra=production_gate_panel('D',candidate)+d_sandbox_body()
+        elif k=='E': extra=production_gate_panel('E',candidate)+e_sandbox_body()
         cards.append('<section class="journey-card '+cls+'"><div class="journey-head"><span class="stage-letter">'+k+'</span><div><b>'+title+'</b><div class="state">'+state+' · '+status+'</div></div></div><p><b>Owner:</b> '+owner+'</p>'+extra+'</section>')
     return '<div class="card"><h2>Full research journey</h2><div class="journey">'+'<div class="arrow">↓</div>'.join(cards)+'</div></div>'
+
+def production_gate_panel(stage,candidate):
+    if stage=='D':
+        eligible=bool(candidate and candidate['state']=='C_PASS')
+        title='PRODUCTION D GATE'
+        msg='Eligible for production D admission.' if eligible else 'LOCKED — requires verified PRODUCTION_EVIDENCE + C_PASS for the same candidate/version.'
+    else:
+        eligible=bool(candidate and candidate['state']=='D_OOS_PASS')
+        title='PRODUCTION E GATE'
+        msg='Eligible for production E provenance audit.' if eligible else 'LOCKED — requires verified production D_OOS_PASS and complete A→D provenance.'
+    cls='good' if eligible else 'hold'
+    return '<div class="stage-work '+cls+'"><h3>'+title+'</h3><p><b>'+html.escape(msg)+'</b></p><p>Sandbox/test evidence can never satisfy this production gate.</p></div>'
 
 def d_sandbox_body():
     root=BASE/'evidence'/'d_sandbox_demo'
