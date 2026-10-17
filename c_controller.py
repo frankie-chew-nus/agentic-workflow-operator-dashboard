@@ -131,6 +131,10 @@ try:
                       "config":str(config),"plan":str(plan),"reason":"Frozen B parameters do not match released strategy parameter schema"})
         print(json.dumps(load(summary),indent=2));raise SystemExit(23)
     output=runroot/"stage1_output"
+    if output.exists():
+        archive=runroot/("stage1_output_archive_"+datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+        output.rename(archive)
+    output.mkdir(parents=True,exist_ok=True)
     runner=Path(__file__).resolve().parent/"c_candidate_stage1_runner.py"
     run([sys.executable,str(runner),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
     from c_stage1_resolver import resolve_stage1
