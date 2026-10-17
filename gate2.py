@@ -167,6 +167,15 @@ def run_c_source_diagnosis(candidate):
     if q.returncode: raise RuntimeError(q.stderr or q.stdout)
     return c_source_diagnosis(candidate)
 
+def c_source_provenance(candidate):
+    runroot=BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']
+    script=BASE/'c_source_provenance.py'
+    evidence=runroot/'source_provenance_inspection.json'
+    if not evidence.exists():
+        q=subprocess.run([sys.executable,str(script),'--c-root',str(CROOT),'--run-root',str(runroot)],cwd=BASE,capture_output=True,text=True,timeout=30)
+        if q.returncode: raise RuntimeError(q.stderr or q.stdout)
+    return load_json(evidence)
+
 def c_hold_html(candidate):
     summary=c_run_summary(candidate) or {}
     log=c_run_log(candidate)
@@ -431,7 +440,9 @@ def c_stage_body(candidate,job):
         summary=c_run_summary(candidate) or {}
         diagnosis=''
         if st=='C_BUILD_GOVERNANCE_HOLD':
-            try: diagnosis=spec_details('View source-authority diagnosis',run_c_source_diagnosis(candidate))
+            try:
+                diagnosis=spec_details('View source-authority diagnosis',run_c_source_diagnosis(candidate))
+                diagnosis+=spec_details('View C source-hash provenance inspection',c_source_provenance(candidate))
             except Exception as e: diagnosis='<p>Diagnosis unavailable: '+html.escape(str(e))+'</p>'
         title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN','C_BUILD_GOVERNANCE_HOLD':'C BUILD GOVERNANCE HOLD — DOWNSTREAM CODE NOT EXECUTED'}.get(st,st)
         return '<div class="stage-work '+('hold' if st!='C_PASS' else '')+'"><h3>'+title+'</h3><p>'+html.escape(candidate['detail'])+'</p>'+spec_details('View C run evidence summary',summary)+diagnosis+'</div>'
