@@ -500,7 +500,12 @@ def c_stage_body(candidate,job):
                 actions+=spec_details('View Stage 1 interface contract',summary.get('interface',{}))
                 actions+=form_buttons([('RETRY_C_CANDIDATE_STAGE1','Retry C with candidate-driven Stage 1')],'Human authorization to retry C using only frozen B parameter ranges')
             if st=='C_STAGE1_REVIEW_REQUIRED':
-                actions+=form_buttons([('ACK_C_REVIEW','Record Stage 1 review acknowledgment')],'Human rationale for Stage 1 evidence review')
+                eq=load_json(BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']/'stage1_equivalence.json') or {}
+                actions+=spec_details('View Stage 1 execution-equivalence evidence',eq) if eq else '<p><b>Execution equivalence:</b> Not yet validated. Run the equivalence gate before acknowledging Stage 1.</p>'
+                if eq.get('state')=='C_STAGE1_EXECUTION_EQUIVALENCE_PASS':
+                    actions+=form_buttons([('ACK_C_REVIEW','Record Stage 1 review acknowledgment')],'Human rationale for Stage 1 evidence review')
+                else:
+                    actions+=form_buttons([('RUN_C_STAGE1_EQUIVALENCE','Validate optimized Stage 1 equivalence')],'Human authorization for read-only full-history vs bounded-history signal equivalence validation')
             elif st in ('C_COMPLETE_REVIEW','C_STAGE1_EVIDENCE_HOLD'):
                 actions+=form_buttons([('RECONCILE_C_STAGE1','Reconcile Stage 1 evidence')],'Human rationale for read-only evidence reconciliation')
                 if st=='C_STAGE1_EVIDENCE_HOLD':
@@ -587,6 +592,17 @@ class H(BaseHTTPRequestHandler):
                     record_artifact(BASE/'evidence'/'c_runs'/cid/x['version'],'c_stage1_summary',resolved['summary_path'])
                 (BASE/'evidence'/'c_runs'/cid/x['version']/'c_run_summary.json').write_text(json.dumps(current,indent=2),encoding='utf-8')
                 c.execute("UPDATE candidates SET state=?,stage='C',detail=? WHERE id=?",(newstate,'Stage 1 evidence reconciled: '+resolved.get('reason',newstate),cid))
+            elif d=='RUN_C_STAGE1_EQUIVALENCE' and x['state']=='C_STAGE1_REVIEW_REQUIRED':
+                decision(c,r['id'],cid,d,rat)
+                root=BASE/'evidence'/'c_runs'/cid/x['version']
+                cur=c_run_summary(x) or {}
+                script=BASE/'c_stage1_equivalence.py'
+                cmd=[sys.executable,str(script),'--plan',str(cur.get('plan','')),'--manifest',str(cur.get('manifest','')),
+                     '--release-record',str(cur.get('release_record','')),'--semantic-pass',str(cur.get('semantic_pass','')),
+                     '--stage1-summary',str(cur.get('result','')),'--output',str(root/'stage1_equivalence.json')]
+                q=subprocess.run(cmd,cwd=BASE,capture_output=True,text=True)
+                ev=load_json(root/'stage1_equivalence.json') or {}
+                c.execute("UPDATE candidates SET detail=? WHERE id=?",('Stage 1 equivalence: '+ev.get('state','NO_EVIDENCE')+'; comparisons='+str(ev.get('comparisons',0))+'; mismatches='+str(ev.get('signal_mismatch_count','?')),cid))
             elif d=='ACK_C_REVIEW' and x['state'] in ('C_COMPLETE_REVIEW','C_STAGE1_REVIEW_REQUIRED'):
                 decision(c,r['id'],cid,d,rat)
                 c.execute("UPDATE candidates SET detail='Human acknowledged Stage 1 evidence; C remains in review pending explicit outcome classification' WHERE id=?",(cid,))
