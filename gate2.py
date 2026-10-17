@@ -127,24 +127,57 @@ def b_flow_cmd():
     workflow_db=sync_b_authority_to_existing_workflow('CAND-B-002')
     return [sys.executable,str(flow),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate','CAND-B-002','--output-dir',str(LEGACY_OPERATOR/'evidence'/'b_resume'/'CAND-B-002'),'--env',str(CROOT/'.env')]
 
+def c_cli_candidates():
+    return [
+      CROOT/'build_candidate_v2.py',
+      CROOT/'semantic_gate_v2.py',
+      CROOT/'stage1_runner_v3.py'
+    ]
+
+def c_preflight_cmd():
+    # Read-only discovery of the existing authoritative C CLI contracts.
+    # --help must not build, mutate, or backtest a candidate.
+    missing=[str(p) for p in c_cli_candidates() if not p.exists()]
+    if missing: raise FileNotFoundError('Existing C CLI component(s) not found: '+', '.join(missing))
+    script=BASE/'c_preflight.py'
+    if not script.exists(): raise FileNotFoundError('Dashboard C preflight adapter missing: '+str(script))
+    return [sys.executable,str(script),'--c-root',str(CROOT)]
+
+def c_preflight_evidence():
+    return load_json(BASE/'evidence'/'c_preflight.json')
+
 def dispatcher():
     while True:
         try:
             c=cx();j=c.execute("SELECT * FROM jobs WHERE state='QUEUED' ORDER BY created_at LIMIT 1").fetchone()
             if not j: c.close();threading.Event().wait(1);continue
-            c.execute("UPDATE jobs SET state='RUNNING',started_at=? WHERE id=?",(now(),j['id']));c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],));c.commit();c.close()
-            latest=cx();ld=latest.execute("SELECT decision FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(j['candidate_id'],)).fetchone();latest.close()
-            if ld and ld['decision']=='RETURN_FAILED_RULES':
-                patched=write_deterministic_patch(j['candidate_id'])
-                if not patched: raise RuntimeError('Patch-mode repair requested but no regression evidence/parent release is available')
-                # Reuse the existing deterministic B boundary validator/freeze step; no model regeneration.
-                flow_dir=LEGACY_OPERATOR
-                workflow_db=sync_b_authority_to_existing_workflow(j['candidate_id'])
-                cmd=[sys.executable,str(flow_dir/'b_resume.py'),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate',j['candidate_id'],'--corrected-candidate',str(patched),'--output-dir',str(flow_dir/'evidence'/'b_resume'/j['candidate_id'])]
+            c.execute("UPDATE jobs SET state='RUNNING',started_at=? WHERE id=?",(now(),j['id']))
+            if j['kind']=='C_PREFLIGHT':
+                c.execute("UPDATE candidates SET state='C_PREFLIGHT_RUNNING',stage='C',detail='Discovering existing C CLI contracts (read-only)' WHERE id=?",(j['candidate_id'],))
             else:
-                cmd=b_flow_cmd()
+                c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],))
+            c.commit();c.close()
+            if j['kind']=='C_PREFLIGHT':
+                cmd=c_preflight_cmd()
+            else:
+                latest=cx();ld=latest.execute("SELECT decision FROM decisions WHERE candidate_id=? ORDER BY created_at DESC LIMIT 1",(j['candidate_id'],)).fetchone();latest.close()
+                if ld and ld['decision']=='RETURN_FAILED_RULES':
+                    patched=write_deterministic_patch(j['candidate_id'])
+                    if not patched: raise RuntimeError('Patch-mode repair requested but no regression evidence/parent release is available')
+                    flow_dir=LEGACY_OPERATOR
+                    workflow_db=sync_b_authority_to_existing_workflow(j['candidate_id'])
+                    cmd=[sys.executable,str(flow_dir/'b_resume.py'),'--db',str(workflow_db),'--register',str(CROOT/'inputs'/'candidate_strategy_register_v2_1_1_frozen.json'),'--candidate',j['candidate_id'],'--corrected-candidate',str(patched),'--output-dir',str(flow_dir/'evidence'/'b_resume'/j['candidate_id'])]
+                else:
+                    cmd=b_flow_cmd()
             with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
             c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
+            if j['kind']=='C_PREFLIGHT':
+                ev=c_preflight_evidence() or {}
+                if q.returncode==0 and ev.get('state')=='C_PREFLIGHT_READY':
+                    c.execute("UPDATE candidates SET state='C_READY_TO_INTEGRATE',stage='C',detail='Existing C CLI contracts discovered; integration command not yet executed' WHERE id=?",(j['candidate_id'],))
+                else:
+                    c.execute("UPDATE candidates SET state='C_SYSTEM_HOLD',stage='C',detail=? WHERE id=?",('C preflight failed. View '+j['log_path'],j['candidate_id']))
+                c.commit();c.close();continue
             rel=external_evidence_root()/'b_resume'/j['candidate_id']/'b_corrected_release.json'; gx=load_json(external_evidence_root()/'b_resume'/j['candidate_id']/'b_regression_hold.json') or {}
             if q.returncode==0 and rel.exists():
                 x=load_json(rel) or {};ver=x.get('candidate',{}).get('version','');c.execute("UPDATE candidates SET state='B_REVIEW',stage='B',version=?,detail='Corrected B release awaiting Human review' WHERE id=?",(ver,j['candidate_id']))
@@ -208,6 +241,21 @@ def stage_body(candidate,job):
     if st=='READY_FOR_C': return '<div class="stage-work"><h3>B COMPLETE — READY FOR C</h3><p>Human release recorded. C integration is the next backend milestone.</p></div>'
     return ''
 
+def c_stage_body(candidate,job):
+    if job and job['kind']=='C_PREFLIGHT':
+        return '<div class="stage-work running"><h3>C PREFLIGHT — RUNNING · NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
+    if not candidate: return ''
+    st=candidate['state']
+    if st=='READY_FOR_C':
+        handoff=(review_data() or {}).get('candidate',{})
+        return '<div class="stage-work"><h3>ACTION REQUIRED — C PREFLIGHT</h3><p>Human B→C release is frozen. Before executing C, the dashboard will discover the existing authoritative C CLI contracts using read-only --help calls.</p>'+spec_details('View frozen B handoff specification',handoff)+form_buttons([('START_C_PREFLIGHT','Verify existing C CLI')],'Human rationale for C preflight')+'</div>'
+    if st=='C_READY_TO_INTEGRATE':
+        ev=c_preflight_evidence() or {}
+        return '<div class="stage-work"><h3>C PREFLIGHT COMPLETE</h3><p>Existing C CLI contracts were discovered without executing C.</p>'+spec_details('View discovered C CLI contracts',ev)+'<p><b>Next:</b> wire the verified command contracts into the C execution adapter.</p></div>'
+    if st=='C_SYSTEM_HOLD':
+        return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
+    return ''
+
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
@@ -219,7 +267,9 @@ def journey_html(r,cs,job):
         if i<idx: state,status,cls='FROZEN','HANDED OVER TO '+order[i+1],'done'
         elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else 'WORKFLOW ACTIVE')
         else: state,status,cls='NOT STARTED','Awaiting '+order[i-1]+' handoff','future'
-        extra=('<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)) if k=='B' and candidate else ''
+        extra=''
+        if k=='B' and candidate: extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
+        elif k=='C' and candidate: extra='<p><b>Candidate received:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+c_stage_body(candidate,job)
         cards.append('<section class="journey-card '+cls+'"><div class="journey-head"><span class="stage-letter">'+k+'</span><div><b>'+title+'</b><div class="state">'+state+' · '+status+'</div></div></div><p><b>Owner:</b> '+owner+'</p>'+extra+'</section>')
     return '<div class="card"><h2>Full research journey</h2><div class="journey">'+'<div class="arrow">↓</div>'.join(cards)+'</div></div>'
 
@@ -240,7 +290,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d in ('RETURN_TO_B','RESUME_B','RETRY_B','RETURN_FAILED_RULES'):
+            if d=='START_C_PREFLIGHT':
+                decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'C_PREFLIGHT','Read-only discovery of existing C CLI contracts')
+            elif d in ('RETURN_TO_B','RESUME_B','RETRY_B','RETURN_FAILED_RULES'):
                 if d=='RETURN_FAILED_RULES':
                     auto=failed_rule_instruction()
                     if auto: rat=(rat+'\n\nAUTO FAILED-RULE INSTRUCTION: '+auto).strip()
