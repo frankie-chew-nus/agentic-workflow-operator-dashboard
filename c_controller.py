@@ -28,9 +28,9 @@ def newest(root,names):
     for n in names:hits.extend(Path(root).rglob(n))
     hits=[p for p in hits if p.is_file()]
     return max(hits,key=lambda p:p.stat().st_mtime) if hits else None
-def passish(obj):
-    txt=json.dumps(obj).upper()
-    return ("PASS" in txt) and not any(x in txt for x in ['"FAIL"','"HOLD"','"BLOCKED"'])
+def semantic_pass(obj):
+    # Only the exact authoritative semantic-gate PASS state permits Stage 1.
+    return isinstance(obj,dict) and obj.get("state")=="SEMANTIC_V2_PASS" and obj.get("failure_count",0)==0
 
 ap=argparse.ArgumentParser()
 ap.add_argument("--c-root",required=True);ap.add_argument("--legacy-evidence",required=True)
@@ -76,7 +76,7 @@ try:
     semantic=runroot/"semantic_pass.json"
     run([sys.executable,str(croot/"release_semantic_gate.py"),"--release-record",str(release_record),"--spec",str(spec),"--output",str(semantic)],croot,log)
     sem=load(semantic)
-    if not passish(sem):
+    if not semantic_pass(sem):
         save(summary,{"state":"C_SEMANTIC_HOLD","candidate_id":a.candidate,"version":a.version,"release_record":str(release_record),"semantic":str(semantic)})
         print(json.dumps(load(summary),indent=2));raise SystemExit(20)
 
@@ -90,11 +90,14 @@ try:
     output=runroot/"stage1_output"
     run([sys.executable,str(croot/"stage1_runner_v3.py"),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
     result=newest(output,["*summary*.json","*result*.json","*ledger*.json"])
+    # A Stage 1 process exit code is not a performance PASS.
+    # Preserve the authoritative result for Human review rather than guessing.
     state="C_COMPLETE_REVIEW"
     if result:
-        obj=load(result);txt=json.dumps(obj).upper()
-        if "C_PASS" in txt or ('"PASS"' in txt and '"FAIL"' not in txt):state="C_PASS"
-        elif "C_FAIL" in txt or '"FAIL"' in txt:state="C_FAIL"
+        obj=load(result)
+        if isinstance(obj,dict) and obj.get("state")=="STAGE1_COMPLETE":
+            if obj.get("human_hold_count",0)>0: state="C_COMPLETE_REVIEW"
+            elif obj.get("pass_count",0)>0 and obj.get("fail_count",0)==0: state="C_COMPLETE_REVIEW"
     out={"state":state,"candidate_id":a.candidate,"version":a.version,"boundary":str(runroot/"c_boundary.json"),"release_record":str(release_record),"semantic_pass":str(semantic),"config":str(config),"plan":str(plan),"manifest":str(manifest),"output_dir":str(output),"result":str(result) if result else None}
     save(summary,out);print(json.dumps(out,indent=2))
 except SystemExit: raise
