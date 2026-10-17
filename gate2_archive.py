@@ -7,6 +7,8 @@ import argparse,csv,hashlib,io,json,subprocess,unittest
 from pathlib import Path
 from gate2_proof_table import COLUMNS,proof_rows
 from gate2_decision_digest import digest
+from gate2_test_log_sanitize import sanitize
+from gate2_judgement_prompts import prompts
 
 FOLDERS=("01_governance_decisions","02_c_execution","03_d_e_sandbox",
          "04_automated_tests","05_proof_registry","06_operator_judgement")
@@ -40,9 +42,11 @@ def build(root,output,test_run=None):
   if captured.get("schema")!="gate2-test-run-v1" or captured.get("result")!="PASS":raise ValueError("A passing test capture is required")
   log=captured.get("log","")
   if sha(log.encode("utf-8"))!=captured.get("log_sha256"):raise ValueError("Test log hash mismatch")
-  # Full test logs remain local; export metadata and hash only.
+  safe_log=sanitize(log)
+  if not safe_log or "Ran " not in safe_log:raise ValueError("Sanitized test log has no unittest summary")
   snapshots["04_automated_tests/test_run_summary.json"]={k:v for k,v in captured.items() if k!="log"}
- snapshots["06_operator_judgement/judgement_record_template.json"]={"status":"HUMAN_INPUT_REQUIRED","entries":[],"warning":"No operator judgement is inferred or fabricated"}
+  snapshots["04_automated_tests/sanitized_test_log.json"]={"sanitized_log":safe_log,"sha256":sha(safe_log.encode("utf-8")),"original_log_sha256":captured["log_sha256"]}
+ snapshots["06_operator_judgement/judgement_record_template.json"]=prompts()
  manifest=[]
  for rel,obj in snapshots.items():
   b=(json.dumps(obj,indent=2,ensure_ascii=True)+"\n").encode("utf-8")
@@ -58,7 +62,7 @@ def build(root,output,test_run=None):
        "Test-run output and operator judgement must be supplied and reviewed separately.\n")
  rel="README.txt";b=note.encode("utf-8");(out/rel).write_bytes(b)
  manifest.append({"path":rel,"sha256":sha(b),"bytes":len(b)})
- m={"archive_version":"v2","source_root":"LOCAL_EVIDENCE_NOT_COPIED",
+ m={"archive_version":"v3","source_root":"LOCAL_EVIDENCE_NOT_COPIED",
     "claims":len(rows),"human_decision_index_entries":len(decisions),
     "files":manifest,"production_authority":False,"commissioning_authority":False}
  (out/"manifest.json").write_text(json.dumps(m,indent=2)+"\n",encoding="utf-8")
