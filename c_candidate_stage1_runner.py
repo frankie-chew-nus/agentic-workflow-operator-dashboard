@@ -29,7 +29,12 @@ def main():
     croot=Path(a.manifest).resolve().parents[2]
     if str(croot) not in sys.path: sys.path.insert(0,str(croot))
     from market_data.policy import create_source
-    bars=create_source("C","CSV",path=man["raw_file"]).get_bars();m=loadmod(mp)
+    bars=create_source("C","CSV",path=man["raw_file"]).get_bars()
+    # Released semantic contract documents uppercase OHLC. Normalize only field
+    # aliases at the runner boundary; values and ordering are unchanged.
+    bars=[{**b,"Open":b.get("Open",b.get("open")),"High":b.get("High",b.get("high")),
+           "Low":b.get("Low",b.get("low")),"Close":b.get("Close",b.get("close"))} for b in bars]
+    m=loadmod(mp)
     out=Path(a.output_dir);out.mkdir(parents=True,exist_ok=True)
     results=[];t0=time.time()
     for v in plan["variants"]:
