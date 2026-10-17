@@ -451,7 +451,10 @@ def c_stage_body(candidate,job):
                 diagnosis+=spec_details('View source-hash serialization analysis',c_source_authority_analysis(candidate))
             except Exception as e: diagnosis='<p>Diagnosis unavailable: '+html.escape(str(e))+'</p>'
         title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN','C_BUILD_GOVERNANCE_HOLD':'C BUILD GOVERNANCE HOLD — DOWNSTREAM CODE NOT EXECUTED'}.get(st,st)
-        return '<div class="stage-work '+('hold' if st!='C_PASS' else '')+'"><h3>'+title+'</h3><p>'+html.escape(candidate['detail'])+'</p>'+spec_details('View C run evidence summary',summary)+diagnosis+'</div>'
+        actions=''
+        if st=='C_BUILD_GOVERNANCE_HOLD':
+            actions='<p>The builder reported a text hash instead of the exact generated file bytes. The proposed repair changes only the builder hash-reporting code, preserves the atomic verifier, and backs up the original file.</p>'+form_buttons([('REPAIR_C_SOURCE_AND_RETRY','Apply guarded source-hash repair and retry C')],'Human authorization for C source-hash repair')
+        return '<div class="stage-work '+('hold' if st!='C_PASS' else '')+'"><h3>'+title+'</h3><p>'+html.escape(candidate['detail'])+'</p>'+spec_details('View C run evidence summary',summary)+diagnosis+actions+'</div>'
     if st=='C_SYSTEM_HOLD':
         return c_hold_html(candidate)
     return ''
@@ -490,7 +493,16 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='RETRY_C':
+            if d=='REPAIR_C_SOURCE_AND_RETRY' and x['state']=='C_BUILD_GOVERNANCE_HOLD':
+                decision(c,r['id'],cid,d,rat)
+                try:
+                    from repair_c_source_hash import apply
+                    repair_state=apply(CROOT/'build_candidate_v2.py')
+                    c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail=? WHERE id=?",('Source-hash builder repair: '+repair_state+'; governed C retry commissioned',cid))
+                    queue(c,r['id'],cid,'C_RUN','Governed C retry after source-byte hash reporting repair')
+                except Exception as e:
+                    c.execute("UPDATE candidates SET detail=? WHERE id=?",('C source repair HOLD: '+str(e),cid))
+            elif d=='RETRY_C':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human authorized governed C retry' WHERE id=?",(cid,));queue(c,r['id'],cid,'C_RUN','Governed C retry: boundary → build → semantic gate → plan freeze → Stage 1')
             elif d=='RETURN_C_TO_B':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='B_REVIEW',stage='B',detail='Human returned candidate from C to B review' WHERE id=?",(cid,))
