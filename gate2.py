@@ -397,7 +397,7 @@ def c_execution_plan():
 
 def c_stage_body(candidate,job):
     if job and job['kind'] in ('C_PREFLIGHT','C_PREP_DISCOVERY','C_RUN'):
-        return '<div class="stage-work running"><h3>C PREFLIGHT — RUNNING · NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
+        return '<div class="stage-work running"><h3>'+('C WORKFLOW — RUNNING · NO ACTION REQUIRED' if job['kind']=='C_RUN' else 'C PREFLIGHT — RUNNING · NO ACTION REQUIRED')+'</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate: return ''
     st=candidate['state']
     if st=='READY_FOR_C':
