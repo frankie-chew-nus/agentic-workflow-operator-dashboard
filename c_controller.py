@@ -28,9 +28,7 @@ def newest(root,names):
     for n in names:hits.extend(Path(root).rglob(n))
     hits=[p for p in hits if p.is_file()]
     return max(hits,key=lambda p:p.stat().st_mtime) if hits else None
-def semantic_pass(obj):
-    # Only the exact authoritative semantic-gate PASS state permits Stage 1.
-    return isinstance(obj,dict) and obj.get("state")=="SEMANTIC_V2_PASS" and obj.get("failure_count",0)==0
+from c_gate_predicates import semantic_pass,stage1_completed
 
 ap=argparse.ArgumentParser()
 ap.add_argument("--c-root",required=True);ap.add_argument("--legacy-evidence",required=True)
@@ -95,7 +93,7 @@ try:
     state="C_COMPLETE_REVIEW"
     if result:
         obj=load(result)
-        if isinstance(obj,dict) and obj.get("state")=="STAGE1_COMPLETE":
+        if stage1_completed(obj):
             if obj.get("human_hold_count",0)>0: state="C_COMPLETE_REVIEW"
             elif obj.get("pass_count",0)>0 and obj.get("fail_count",0)==0: state="C_COMPLETE_REVIEW"
     out={"state":state,"candidate_id":a.candidate,"version":a.version,"boundary":str(runroot/"c_boundary.json"),"release_record":str(release_record),"semantic_pass":str(semantic),"config":str(config),"plan":str(plan),"manifest":str(manifest),"output_dir":str(output),"result":str(result) if result else None}
