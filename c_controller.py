@@ -120,17 +120,27 @@ try:
 
     output=runroot/"stage1_output"
     run([sys.executable,str(croot/"stage1_runner_v3.py"),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
-    result=newest(output,["*summary*.json","*result*.json","*ledger*.json"])
-    # A Stage 1 process exit code is not a performance PASS.
-    # Preserve the authoritative result for Human review rather than guessing.
-    state="C_COMPLETE_REVIEW"
-    if result:
-        obj=load(result)
-        if stage1_completed(obj):
-            if obj.get("human_hold_count",0)>0: state="C_COMPLETE_REVIEW"
-            elif obj.get("pass_count",0)>0 and obj.get("fail_count",0)==0: state="C_COMPLETE_REVIEW"
-    out={"state":state,"candidate_id":a.candidate,"version":a.version,"boundary":str(runroot/"c_boundary.json"),"release_record":str(release_record),"semantic_pass":str(semantic),"config":str(config),"plan":str(plan),"manifest":str(manifest),"output_dir":str(output),"result":str(result) if result else None}
+    from c_stage1_resolver import resolve_stage1
+    from operator_artifacts import record_artifact
+    resolved=resolve_stage1(output)
+    state=resolved["state"]
+    out={"state":state,"candidate_id":a.candidate,"version":a.version,
+         "boundary":str(runroot/"c_boundary.json"),"release_record":str(release_record),
+         "semantic_pass":str(semantic),"config":str(config),"plan":str(plan),
+         "manifest":str(manifest),"output_dir":str(output),
+         "result":resolved.get("summary_path"),"stage1_evidence":resolved}
+    if state=="C_STAGE1_REVIEW_REQUIRED":
+        # A verified Stage 1 summary exists; record exact immutable input/output
+        # identities, without inferring trading success.
+        for role,path in (("b_to_c_boundary",runroot/"c_boundary.json"),
+                          ("c_release_record",release_record),("c_semantic_pass",semantic),
+                          ("c_stage1_config",config),("c_variant_plan",plan),
+                          ("c_market_manifest",manifest),
+                          ("c_stage1_summary",resolved["summary_path"])):
+            record_artifact(runroot,role,path)
+        out["artifact_registry"]=str(runroot/"artifact_registry.json")
     save(summary,out);print(json.dumps(out,indent=2))
+
 except SystemExit: raise
 except Exception as e:
     save(summary,{"state":"C_SYSTEM_HOLD","candidate_id":a.candidate,"version":a.version,"error":repr(e),"log":str(log)})
