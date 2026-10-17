@@ -42,8 +42,11 @@ def discover_decisions(root):
  if not db.is_file():return []
  claims=[]
  try:
-  with sqlite3.connect("file:"+str(db)+"?mode=ro",uri=True) as conn:
+  conn=sqlite3.connect(db.as_uri()+"?mode=ro",uri=True)
+  try:
    rows=conn.execute("SELECT id,candidate_id,decision,rationale,created_at FROM decisions ORDER BY created_at,id").fetchall()
+  finally:
+   conn.close()
  except (sqlite3.Error,ValueError):return []
  for rid,cid,action,rationale,created in rows:
   claims.append({"claim_id":"DISC-HUMAN-"+str(rid),"claim":"Recorded Human decision (not independent authorization)",
