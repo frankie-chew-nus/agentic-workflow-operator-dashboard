@@ -75,8 +75,43 @@ try:
     run([sys.executable,str(croot/"release_semantic_gate.py"),"--release-record",str(release_record),"--spec",str(spec),"--output",str(semantic)],croot,log)
     sem=load(semantic)
     if not semantic_pass(sem):
-        save(summary,{"state":"C_SEMANTIC_HOLD","candidate_id":a.candidate,"version":a.version,"release_record":str(release_record),"semantic":str(semantic)})
-        print(json.dumps(load(summary),indent=2));raise SystemExit(20)
+        # Existing authoritative semantic repair is permitted only for a semantic
+        # HOLD tied to the exact frozen implementation release. Never patch a
+        # released module in place or substitute a hash.
+        repairs=[]
+        if (sem.get("state")=="SEMANTIC_GATE_HOLD"
+            and sem.get("module_sha256")==load(release_record).get("module_sha256")
+            and sem.get("failure_count",0)>0):
+            repairroot=runroot/"semantic_repairs"
+            repairroot.mkdir(parents=True,exist_ok=True)
+            run([sys.executable,str(croot/"semantic_repair_release.py"),
+                 "--env",str(croot/".env"),
+                 "--release-record",str(release_record),
+                 "--semantic-hold",str(semantic),
+                 "--spec",str(spec),
+                 "--run-root",str(repairroot)],croot,log)
+            # Only a new immutable release record under this repair root is eligible.
+            repaired=newest(repairroot,["implementation_release.json"])
+            if repaired and repaired.resolve()!=release_record.resolve():
+                rrec=load(repaired)
+                if (rrec.get("state")=="IMPLEMENTATION_RELEASED"
+                    and rrec.get("candidate_id")==a.candidate
+                    and rrec.get("parent_release_sha256")==load(release_record).get("module_sha256")):
+                    next_sem=runroot/"semantic_repair_pass.json"
+                    run([sys.executable,str(croot/"release_semantic_gate.py"),
+                         "--release-record",str(repaired),"--spec",str(spec),
+                         "--output",str(next_sem)],croot,log)
+                    repairs.append({"release_record":str(repaired),"semantic":str(next_sem)})
+                    if semantic_pass(load(next_sem)):
+                        release_record=repaired
+                        semantic=next_sem
+                        sem=load(semantic)
+        if not semantic_pass(sem):
+            save(summary,{"state":"C_SEMANTIC_HOLD","candidate_id":a.candidate,
+                          "version":a.version,"release_record":str(release_record),
+                          "semantic":str(semantic),"repairs":repairs,
+                          "reason":"Semantic validation failed; Stage 1 not authorized"})
+            print(json.dumps(load(summary),indent=2));raise SystemExit(20)
 
     manifest=croot/"evidence"/"market_data"/"stage1_manifest.json"
     if not manifest.exists(): raise RuntimeError("Stage1 manifest not found")
