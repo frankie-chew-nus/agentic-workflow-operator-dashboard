@@ -10,7 +10,9 @@ def diagnose(runroot):
     root=Path(runroot); summary=read(root/"c_run_summary.json"); hold=summary.get("hold") or {}
     expected=hold.get("expected");actual=hold.get("actual")
     findings=[]
+    searched=0
     for path in sorted((root/"build").rglob("*.json")) if (root/"build").exists() else []:
+        searched+=1
         obj=read(path)
         if not isinstance(obj,dict) or obj.get("state")!="IMPLEMENTATION_READY":continue
         module=obj.get("module")
@@ -43,9 +45,11 @@ def diagnose(runroot):
         classification="DISK_SOURCE_MATCHES_EXPECTED"
     if not findings:
         classification="SOURCE_BUILD_EVIDENCE_NOT_FOUND"
+    elif any(x.get("error")=="REPORTED_MODULE_NOT_FOUND" for x in findings):
+        classification="REPORTED_MODULE_NOT_FOUND"
     result={"state":"C_SOURCE_AUTHORITY_ANALYSIS","classification":classification,
             "candidate_id":summary.get("candidate_id"),"version":summary.get("version"),
-            "expected":expected,"actual":actual,"evidence":findings,
+            "expected":expected,"actual":actual,"evidence":findings,"json_files_examined":searched,
             "authorized_to_modify_source":False,"authorized_to_override_hash":False,
             "next":"Keep existing C authority check enforced. Investigate generated-source serialization in the existing C build before authorizing any repair."}
     out=root/"source_authority_analysis.json"
