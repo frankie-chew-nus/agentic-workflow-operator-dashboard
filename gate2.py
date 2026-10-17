@@ -474,9 +474,7 @@ def c_stage_body(candidate,job):
                 actions+=form_buttons([('REPAIR_C_STAGE1_CONTRACT','Align Stage 1 semantic contract')],'Human authorization for guarded C Stage 1 compatibility repair')
             if st=='C_STAGE1_INTERFACE_HOLD':
                 actions+=spec_details('View Stage 1 interface contract',summary.get('interface',{}))
-                iface=summary.get('interface',{})
-                if iface.get('checks',{}).get('runner_parameter_keys_available'):
-                    actions+=form_buttons([('REPAIR_C_STAGE1_INTERFACE','Align Stage 1 strategy interface')],'Human authorization for guarded Stage 1 interface repair')
+                actions+=form_buttons([('RETRY_C_CANDIDATE_STAGE1','Retry C with candidate-driven Stage 1')],'Human authorization to retry C using only frozen B parameter ranges')
             if st=='C_STAGE1_REVIEW_REQUIRED':
                 actions+=form_buttons([('ACK_C_REVIEW','Record Stage 1 review acknowledgment')],'Human rationale for Stage 1 evidence review')
             elif st in ('C_COMPLETE_REVIEW','C_STAGE1_EVIDENCE_HOLD'):
@@ -496,13 +494,13 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_START_COMMISSIONED','C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_STAGE1_REVIEW_REQUIRED','C_STAGE1_EVIDENCE_HOLD','C_SEMANTIC_HOLD','C_BUILD_GOVERNANCE_HOLD','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and (b2['stage']=='C' or str(b2['state']).startswith('C_') or b2['state']=='READY_FOR_C') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
         title,owner=defs[k]
         if i<idx: state,status,cls='FROZEN','HANDED OVER TO '+order[i+1],'done'
-        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job and ((k=='B' and str(job['kind']).startswith('B_')) or (k=='C' and str(job['kind']).startswith('C_'))) else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else ('PREFLIGHT COMPLETE · READY TO INTEGRATE' if k=='C' and candidate and candidate['state']=='C_READY_TO_INTEGRATE' else 'WORKFLOW ACTIVE'))
+        elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job and ((k=='B' and str(job['kind']).startswith('B_')) or (k=='C' and str(job['kind']).startswith('C_'))) else ('HUMAN ACTION REQUIRED' if candidate and (candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') or (k=='C' and candidate['state'] in ('C_SYSTEM_HOLD','C_SEMANTIC_HOLD','C_BUILD_GOVERNANCE_HOLD','C_STAGE1_EVIDENCE_HOLD','C_STAGE1_PREFLIGHT_HOLD','C_STAGE1_INTERFACE_HOLD','C_STAGE1_REVIEW_REQUIRED'))) else ('PREFLIGHT COMPLETE · READY TO INTEGRATE' if k=='C' and candidate and candidate['state']=='C_READY_TO_INTEGRATE' else 'WORKFLOW ACTIVE'))
         else: state,status,cls='NOT STARTED','Awaiting '+order[i-1]+' handoff','future'
         extra=''
         if k=='B' and candidate and candidate['stage']=='B': extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
@@ -527,15 +525,10 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='REPAIR_C_STAGE1_INTERFACE' and x['state']=='C_STAGE1_INTERFACE_HOLD':
+            if d=='RETRY_C_CANDIDATE_STAGE1' and x['state']=='C_STAGE1_INTERFACE_HOLD':
                 decision(c,r['id'],cid,d,rat)
-                try:
-                    from repair_c_stage1_interface import apply
-                    status=apply(CROOT/'stage1_runner_v3.py')
-                    c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail=? WHERE id=?",('Stage 1 interface: '+status+'; governed retry commissioned',cid))
-                    queue(c,r['id'],cid,'C_RUN','Governed C retry after Stage 1 interface alignment')
-                except Exception as e:
-                    c.execute("UPDATE candidates SET detail=? WHERE id=?",('Stage 1 interface repair HOLD: '+str(e),cid))
+                c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human authorized candidate-driven Stage 1 retry using frozen B parameters only' WHERE id=?",(cid,))
+                queue(c,r['id'],cid,'C_RUN','Candidate-driven C retry: frozen B parameters → semantic gate → Stage 1')
             elif d=='ALIGN_AND_RETRY_C_STAGE1' and x['state']=='C_STAGE1_EVIDENCE_HOLD':
                 decision(c,r['id'],cid,d,rat)
                 try:
