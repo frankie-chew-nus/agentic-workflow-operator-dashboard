@@ -2,7 +2,7 @@
 def semantic_pass(obj):
     return (
         isinstance(obj,dict)
-        and obj.get("state")=="SEMANTIC_V2_PASS"
+        and obj.get("state")=="SEMANTIC_GATE_PASS"
         and type(obj.get("failure_count")) is int
         and obj["failure_count"]==0
         and isinstance(obj.get("module_sha256"),str)
