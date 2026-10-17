@@ -173,8 +173,8 @@ def dispatcher():
             c=cx();j=c.execute("SELECT * FROM jobs WHERE state='QUEUED' ORDER BY created_at LIMIT 1").fetchone()
             if not j: c.close();threading.Event().wait(1);continue
             c.execute("UPDATE jobs SET state='RUNNING',started_at=? WHERE id=?",(now(),j['id']))
-            if j['kind']=='C_PREFLIGHT':
-                c.execute("UPDATE candidates SET state='C_PREFLIGHT_RUNNING',stage='C',detail='Discovering existing C CLI contracts (read-only)' WHERE id=?",(j['candidate_id'],))
+            if str(j['kind']).startswith('C_'):
+                c.execute("UPDATE candidates SET state='C_RUNNING',stage='C',detail=? WHERE id=?",(j['detail'],j['candidate_id']))
             else:
                 c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],))
             c.commit();c.close()
@@ -419,7 +419,7 @@ def journey_html(r,cs,job):
         elif i==idx: state,cls='ACTIVE','active';status='RUNNING — NO ACTION REQUIRED' if job and ((k=='B' and str(job['kind']).startswith('B_')) or (k=='C' and str(job['kind']).startswith('C_'))) else ('HUMAN ACTION REQUIRED' if candidate and candidate['state'] in ('B_REVIEW','WAITING_FOR_B','SYSTEM_HOLD','GOVERNANCE_HOLD') else ('PREFLIGHT COMPLETE · READY TO INTEGRATE' if k=='C' and candidate and candidate['state']=='C_READY_TO_INTEGRATE' else 'WORKFLOW ACTIVE'))
         else: state,status,cls='NOT STARTED','Awaiting '+order[i-1]+' handoff','future'
         extra=''
-        if k=='B' and candidate: extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
+        if k=='B' and candidate and candidate['stage']=='B': extra='<p><b>Current candidate:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+stage_body(candidate,job)
         elif k=='C' and candidate: extra='<p><b>Candidate received:</b> '+html.escape(candidate['id'])+' · '+html.escape(candidate['version'] or '')+' · '+html.escape(candidate['state'])+'</p>'+c_stage_body(candidate,job)
         cards.append('<section class="journey-card '+cls+'"><div class="journey-head"><span class="stage-letter">'+k+'</span><div><b>'+title+'</b><div class="state">'+state+' · '+status+'</div></div></div><p><b>Owner:</b> '+owner+'</p>'+extra+'</section>')
     return '<div class="card"><h2>Full research journey</h2><div class="journey">'+'<div class="arrow">↓</div>'.join(cards)+'</div></div>'
