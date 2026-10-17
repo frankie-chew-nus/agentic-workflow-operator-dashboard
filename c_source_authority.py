@@ -16,8 +16,12 @@ def diagnose(runroot):
         module=obj.get("module")
         if not module:continue
         mp=Path(module)
-        if not mp.is_absolute():mp=path.parent/mp
-        if not mp.is_file():continue
+        if not mp.is_absolute():
+            candidates=(path.parent/mp, Path.cwd()/mp, root/"build"/mp)
+            mp=next((x for x in candidates if x.is_file()),candidates[0])
+        if not mp.is_file():
+            findings.append({"summary":str(path),"module":str(mp),"error":"REPORTED_MODULE_NOT_FOUND"})
+            continue
         data=mp.read_bytes()
         try:
             txt=data.decode("utf-8")
@@ -33,10 +37,12 @@ def diagnose(runroot):
                 "crlf_matches_expected":crlf_hash==expected}
         findings.append(record)
     classification="UNRESOLVED_SOURCE_AUTHORITY"
-    if any(x["lf_matches_expected"] or x["crlf_matches_expected"] for x in findings):
+    if any(x.get("lf_matches_expected") or x.get("crlf_matches_expected") for x in findings):
         classification="POSSIBLE_NEWLINE_SERIALIZATION_MISMATCH"
-    elif any(x["disk_matches_expected"] for x in findings):
+    elif any(x.get("disk_matches_expected") for x in findings):
         classification="DISK_SOURCE_MATCHES_EXPECTED"
+    if not findings:
+        classification="SOURCE_BUILD_EVIDENCE_NOT_FOUND"
     result={"state":"C_SOURCE_AUTHORITY_ANALYSIS","classification":classification,
             "candidate_id":summary.get("candidate_id"),"version":summary.get("version"),
             "expected":expected,"actual":actual,"evidence":findings,
