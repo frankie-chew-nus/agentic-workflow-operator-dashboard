@@ -33,6 +33,10 @@ def init():
         rid='RES-XAUUSD';c.execute('INSERT INTO research VALUES(?,?,?,?)',(rid,'XAUUSD M1 Price Action','ACTIVE','B'))
         for x in [('CAND-B-001','C_FAIL','C','v2.1.1','0/50 PASS',1),('CAND-B-002','B_REVIEW','B','v2.1.2','Corrected B release awaiting Human review',2),('CAND-B-003','C_FAIL','C','v2.1.1','0/7 PASS',3)]: c.execute('INSERT INTO candidates VALUES(?,?,?,?,?,?,?)',(x[0],rid,x[1],x[2],x[3],x[4],x[5]))
         decision(c,rid,'CAND-B-002','RETURN_TO_B','Volatility expansion is not deterministically defined. Return to B for a corrected specification before C implementation.')
+    # Durable Start-C authority resumes automatically after dashboard updates/restarts.
+    x=c.execute("SELECT * FROM candidates WHERE id='CAND-B-002'").fetchone()
+    if x and x['state']=='C_START_COMMISSIONED' and not active_job(c):
+        queue(c,'RES-XAUUSD','CAND-B-002','C_RUN','Governed C workflow: boundary → build → semantic gate → plan freeze → Stage 1')
     c.commit();c.close()
 
 def active_job(c): return c.execute("SELECT * FROM jobs WHERE state IN ('QUEUED','RUNNING') ORDER BY created_at LIMIT 1").fetchone()
@@ -143,6 +147,15 @@ def c_preflight_cmd():
     if not script.exists(): raise FileNotFoundError('Dashboard C preflight adapter missing: '+str(script))
     return [sys.executable,str(script),'--c-root',str(CROOT)]
 
+def c_run_cmd(candidate):
+    script=BASE/'c_controller.py'
+    runroot=BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']
+    log=BASE/'evidence'/'logs'/('C-RUN-'+candidate['id']+'-'+candidate['version'].replace('.','_')+'.log')
+    return [sys.executable,str(script),'--c-root',str(CROOT),'--legacy-evidence',str(external_evidence_root()),'--candidate',candidate['id'],'--version',candidate['version'],'--run-root',str(runroot),'--log',str(log)]
+
+def c_run_summary(candidate):
+    return load_json(BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']/'c_run_summary.json')
+
 def c_preflight_evidence():
     return load_json(BASE/'evidence'/'c_preflight.json')
 
@@ -165,7 +178,10 @@ def dispatcher():
             else:
                 c.execute("UPDATE candidates SET state='B_RUNNING',stage='B',detail='Governed B correction via configured model endpoint' WHERE id=?",(j['candidate_id'],))
             c.commit();c.close()
-            if j['kind']=='C_PREP_DISCOVERY':
+            if j['kind']=='C_RUN':
+                dc=cx();cand=dc.execute("SELECT * FROM candidates WHERE id=?",(j['candidate_id'],)).fetchone();dc.close()
+                cmd=c_run_cmd(cand)
+            elif j['kind']=='C_PREP_DISCOVERY':
                 cmd=c_prepare_discovery_cmd()
             elif j['kind']=='C_PREFLIGHT':
                 cmd=c_preflight_cmd()
@@ -181,6 +197,12 @@ def dispatcher():
                     cmd=b_flow_cmd()
             with open(j['log_path'],'w',encoding='utf-8') as f: q=subprocess.run(cmd,cwd=Path(cmd[1]).parent,stdout=f,stderr=subprocess.STDOUT,text=True)
             c=cx();c.execute("UPDATE jobs SET state='COMPLETE',finished_at=?,return_code=? WHERE id=?",(now(),q.returncode,j['id']))
+            if j['kind']=='C_RUN':
+                dc=cx();cand=dc.execute("SELECT * FROM candidates WHERE id=?",(j['candidate_id'],)).fetchone();dc.close();ev=c_run_summary(cand) or {}
+                st=ev.get('state','C_SYSTEM_HOLD')
+                detail={'C_PASS':'Stage 1 PASS; Human review required before D','C_FAIL':'Stage 1 FAIL; candidate withheld from D','C_COMPLETE_REVIEW':'Stage 1 complete; Human review required','C_SEMANTIC_HOLD':'Semantic gate HOLD; C stopped before Stage 1','C_SYSTEM_HOLD':'C controller/system HOLD'}.get(st,'C controller result: '+st)
+                c.execute("UPDATE candidates SET state=?,stage='C',detail=? WHERE id=?",(st,detail,j['candidate_id']))
+                c.commit();c.close();continue
             if j['kind']=='C_PREP_DISCOVERY':
                 ev=c_prepare_discovery_evidence() or {}
                 if q.returncode==0 and ev.get('state')=='C_PREPARATION_DISCOVERY_READY':
@@ -356,7 +378,7 @@ def c_execution_plan():
     }
 
 def c_stage_body(candidate,job):
-    if job and job['kind'] in ('C_PREFLIGHT','C_PREP_DISCOVERY'):
+    if job and job['kind'] in ('C_PREFLIGHT','C_PREP_DISCOVERY','C_RUN'):
         return '<div class="stage-work running"><h3>C PREFLIGHT — RUNNING · NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate: return ''
     st=candidate['state']
@@ -376,7 +398,11 @@ def c_stage_body(candidate,job):
     if st=='C_PREP_PATH_APPROVED':
         return '<div class="stage-work"><h3>ACTION REQUIRED — START GOVERNED C</h3><p>The C preparation path is approved. Starting C will commission the dashboard controller to create the B-002-specific boundary package and execute only the approved existing C chain, stopping automatically on any HOLD/non-zero result and before D.</p>'+spec_details('View approved C preparation path',c_preparation_assessment())+form_buttons([('START_GOVERNED_C','Start governed C workflow')],'Human rationale to commission governed C execution')+'</div>'
     if st=='C_START_COMMISSIONED':
-        return '<div class="stage-work hold"><h3>C CONTROLLER HOLD — EXECUTION ADAPTER NOT YET COMMISSIONED</h3><p>Your Start C authority is recorded. No C command was executed because the end-to-end C controller adapter is not yet implemented. This is a development HOLD, not a workflow decision.</p>'+spec_details('View commissioned C preparation path',c_preparation_assessment())+'</div>'
+        return '<div class="stage-work running"><h3>C START COMMISSIONED — CONTROLLER WILL RESUME</h3><p>Your durable Human authority is recorded. The autonomous C controller will start/resume without another approval.</p></div>'
+    if st in ('C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_SEMANTIC_HOLD'):
+        summary=c_run_summary(candidate) or {}
+        title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN'}.get(st,st)
+        return '<div class="stage-work '+('hold' if st!='C_PASS' else '')+'"><h3>'+title+'</h3><p>'+html.escape(candidate['detail'])+'</p>'+spec_details('View C run evidence summary',summary)+'</div>'
     if st=='C_SYSTEM_HOLD':
         return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
     return ''
@@ -384,7 +410,7 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_START_COMMISSIONED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_START_COMMISSIONED','C_PASS','C_FAIL','C_COMPLETE_REVIEW','C_SEMANTIC_HOLD','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
