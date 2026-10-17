@@ -19,6 +19,6 @@ class ArchiveV2Tests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    root=Path(t)/"evidence";root.mkdir();out=Path(t)/"archive"
    build(root,out)
-   x=json.loads((out/"06_operator_judgement/judgement_record_template.json").read_text())
-   self.assertEqual(x["status"],"HUMAN_REVIEW_REQUIRED");self.assertTrue(x["entries"]);self.assertTrue(all(e["human_statement"] is None for e in x["entries"]))
+   x=json.loads((out/"06_operator_judgement/approved_judgement.json").read_text())
+   self.assertEqual(x["status"],"HUMAN_REVIEWED_NARRATIVE");self.assertEqual(len(x["entries"]),4);self.assertFalse(x["independent_evidence_verified"])
 if __name__=="__main__":unittest.main()
