@@ -118,6 +118,14 @@ try:
     config=newest(freeze,["stage1_config.json"]);plan=newest(freeze,["variant_plan.json"])
     if not config or not plan: raise RuntimeError("Stage1 freeze did not produce config and variant plan")
 
+    from c_stage1_preflight import preflight
+    pre=preflight(config,plan,semantic)
+    save(runroot/"stage1_preflight.json",pre)
+    if not pre["safe_to_run"]:
+        save(summary,{"state":"C_STAGE1_PREFLIGHT_HOLD","candidate_id":a.candidate,
+                      "version":a.version,"preflight":pre,"release_record":str(release_record),
+                      "semantic_pass":str(semantic),"config":str(config),"plan":str(plan)})
+        print(json.dumps(load(summary),indent=2));raise SystemExit(22)
     output=runroot/"stage1_output"
     run([sys.executable,str(croot/"stage1_runner_v3.py"),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
     from c_stage1_resolver import resolve_stage1
