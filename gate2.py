@@ -594,12 +594,42 @@ def render():
     css='body{font-family:Segoe UI,Arial;background:#f3f5f7;margin:0}header{background:#111827;color:white;padding:18px}main{max-width:1120px;margin:auto;padding:22px}.card{background:white;padding:18px;margin:14px 0;border:1px solid #ddd;border-radius:12px}.journey{display:grid;gap:10px}.journey-card{border:1px solid #d1d5db;border-radius:10px;padding:14px}.done{background:#f0fdf4}.active{border:2px solid #2563eb;background:#eff6ff}.future{background:#f3f4f6;color:#6b7280}.journey-head{display:flex;gap:12px;align-items:center}.stage-letter{display:inline-flex;width:42px;height:42px;border-radius:50%;align-items:center;justify-content:center;background:#111827;color:white;font-weight:700}.state{font-size:13px;font-weight:700}.arrow{text-align:center}.stage-work{margin-top:16px;padding-top:16px;border-top:2px solid #93c5fd}.hold{border-top-color:#d97706}.candidate-active{background:#eff6ff}textarea{width:96%;min-height:75px;padding:10px}button{padding:10px 14px;margin:8px 5px 0 0;background:#2563eb;color:white;border:0;border-radius:6px}.good{background:#15803d}.bad{background:#b91c1c}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #ddd;text-align:left}pre{white-space:pre-wrap;background:#f8fafc;padding:12px;max-height:520px;overflow:auto}details{margin:12px 0;border:1px solid #bfdbfe;border-radius:8px;background:white;padding:10px}.rule-pass{background:#f0fdf4}.rule-fail{background:#fef2f2;font-weight:600}'
     return '<html><head><meta charset=utf-8><style>'+css+'</style></head><body><header><h2>Gate 2 Operator App</h2></header><main>'+b+'</main></body></html>'
 
+def action_authorized(state,action):
+    # Server-side authorization. UI visibility is never authority.
+    rules={
+      'RUN_D_SANDBOX':lambda st: True,
+      'RUN_E_SANDBOX':lambda st: True,
+      'RETRY_C_CANDIDATE_STAGE1':lambda st: st=='C_STAGE1_INTERFACE_HOLD',
+      'ALIGN_AND_RETRY_C_STAGE1':lambda st: st=='C_STAGE1_EVIDENCE_HOLD',
+      'REPAIR_C_STAGE1_CONTRACT':lambda st: st=='C_STAGE1_PREFLIGHT_HOLD',
+      'RECONCILE_C_STAGE1':lambda st: st in ('C_COMPLETE_REVIEW','C_STAGE1_EVIDENCE_HOLD'),
+      'RUN_C_STAGE1_EQUIVALENCE':lambda st: st=='C_STAGE1_REVIEW_REQUIRED',
+      'ACK_C_REVIEW':lambda st: st in ('C_COMPLETE_REVIEW','C_STAGE1_REVIEW_REQUIRED'),
+      'RETRY_C_SEMANTIC_REPAIR':lambda st: st=='C_SEMANTIC_HOLD',
+      'REPAIR_C_SOURCE_AND_RETRY':lambda st: st=='C_BUILD_GOVERNANCE_HOLD',
+      'RETRY_C':lambda st: st=='C_SYSTEM_HOLD',
+      'RETURN_C_TO_B':lambda st: str(st).startswith('C_'),
+      'START_GOVERNED_C':lambda st: st=='C_PREP_PATH_APPROVED',
+      'APPROVE_C_PREP_PATH':lambda st: st=='C_PREP_DISCOVERED',
+      'DISCOVER_C_PREP':lambda st: st=='C_MAPPING_REVIEWED',
+      'APPROVE_C_MAPPING_REVIEW':lambda st: st=='C_PLAN_APPROVED',
+      'APPROVE_C_PLAN':lambda st: st=='C_READY_TO_INTEGRATE',
+      'START_C_PREFLIGHT':lambda st: st=='READY_FOR_C',
+      'RELEASE_TO_C':lambda st: st=='B_REVIEW',
+      'RETURN_TO_B':lambda st: st in ('B_REVIEW','GOVERNANCE_HOLD'),
+      'RETURN_FAILED_RULES':lambda st: st=='GOVERNANCE_HOLD',
+      'RESUME_B':lambda st: st=='WAITING_FOR_B',
+      'RETRY_B':lambda st: st=='SYSTEM_HOLD',
+      'REJECT':lambda st: True}
+    fn=rules.get(action)
+    return bool(fn and fn(state))
+
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
         b=render().encode();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.end_headers();self.wfile.write(b)
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
-        if x and len(rat)>=12 and not active_job(c):
+        if x and len(rat)>=12 and not active_job(c) and action_authorized(x['state'],d):
             if d=='RUN_E_SANDBOX':
                 decision(c,r['id'],cid,d,rat)
                 from e_dashboard_sandbox import execute
