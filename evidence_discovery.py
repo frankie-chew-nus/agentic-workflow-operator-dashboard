@@ -2,6 +2,7 @@
 import hashlib,json
 from pathlib import Path
 from evidence_registry import inspect_registry
+from evidence_c_discovery import discover_c,discover_decisions
 
 KNOWN={
  "d_sandbox_demo/dashboard_summary.json":("D","SANDBOX"),
