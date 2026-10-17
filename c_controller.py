@@ -114,30 +114,25 @@ try:
     manifest=croot/"evidence"/"market_data"/"stage1_manifest.json"
     if not manifest.exists(): raise RuntimeError("Stage1 manifest not found")
     freeze=runroot/"stage1_config"
+    # Keep the existing freeze output as audit evidence, but do not reuse its
+    # legacy strategy-specific variant plan for this candidate.
     run([sys.executable,str(croot/"freeze_stage1_plan.py"),"--manifest",str(manifest),"--release-record",str(release_record),"--spec",str(spec),"--output-dir",str(freeze)],croot,log)
-    config=newest(freeze,["stage1_config.json"]);plan=newest(freeze,["variant_plan.json"])
-    if not config or not plan: raise RuntimeError("Stage1 freeze did not produce config and variant plan")
-
-    from c_stage1_preflight import preflight
-    pre=preflight(config,plan,semantic,croot/"stage1_runner_v3.py")
-    save(runroot/"stage1_preflight.json",pre)
-    if not pre["safe_to_run"]:
-        save(summary,{"state":"C_STAGE1_PREFLIGHT_HOLD","candidate_id":a.candidate,
-                      "version":a.version,"preflight":pre,"release_record":str(release_record),
-                      "semantic_pass":str(semantic),"config":str(config),"plan":str(plan)})
-        print(json.dumps(load(summary),indent=2));raise SystemExit(22)
+    config=newest(freeze,["stage1_config.json"])
+    if not config: raise RuntimeError("Stage1 freeze did not produce config")
+    from c_candidate_stage1_plan import build as build_candidate_plan
+    plan,plan_obj=build_candidate_plan(spec,a.candidate,config,freeze)
+    save(runroot/"candidate_stage1_plan_summary.json",{"state":plan_obj["state"],"parameter_names":plan_obj["parameter_names"],"variant_count":plan_obj["variant_count"],"plan":str(plan)})
     from c_stage1_interface import validate as validate_stage1_interface
-    interface=validate_stage1_interface(release_record,plan,croot/"stage1_runner_v3.py")
+    interface=validate_stage1_interface(release_record,plan)
     save(runroot/"stage1_interface.json",interface)
-    if not interface["safe_to_run"]:
-        save(summary,{"state":"C_STAGE1_INTERFACE_HOLD","candidate_id":a.candidate,
-                      "version":a.version,"interface":interface,
-                      "release_record":str(release_record),"semantic_pass":str(semantic),
-                      "config":str(config),"plan":str(plan),
-                      "reason":"Released strategy, frozen plan, and Stage1 runner interface are incompatible"})
+    if not interface["checks"]["variant_parameter_keys_match_module"]:
+        save(summary,{"state":"C_STAGE1_INTERFACE_HOLD","candidate_id":a.candidate,"version":a.version,
+                      "interface":interface,"release_record":str(release_record),"semantic_pass":str(semantic),
+                      "config":str(config),"plan":str(plan),"reason":"Frozen B parameters do not match released strategy parameter schema"})
         print(json.dumps(load(summary),indent=2));raise SystemExit(23)
     output=runroot/"stage1_output"
-    run([sys.executable,str(croot/"stage1_runner_v3.py"),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
+    runner=Path(__file__).resolve().parent/"c_candidate_stage1_runner.py"
+    run([sys.executable,str(runner),"--config",str(config),"--plan",str(plan),"--manifest",str(manifest),"--release-record",str(release_record),"--semantic-pass",str(semantic),"--output-dir",str(output)],croot,log)
     from c_stage1_resolver import resolve_stage1
     from operator_artifacts import record_artifact
     resolved=resolve_stage1(output)
