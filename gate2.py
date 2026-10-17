@@ -308,7 +308,7 @@ def form_buttons(buttons,placeholder='Human rationale'):
     return '<form method=post action=/decide><textarea name=rationale required minlength=12 placeholder="'+html.escape(placeholder)+'"></textarea><input type=hidden name=candidate value=CAND-B-002>'+bs+'</form>'
 
 def stage_body(candidate,job):
-    if job and job['candidate_id']=='CAND-B-002' and str(job['kind']).startswith('B_'): return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True,stage='C')+'<button onclick="location.reload()">Refresh</button></div>'
+    if job and job['candidate_id']=='CAND-B-002' and str(job['kind']).startswith('B_'): return '<div class="stage-work running"><h3>RUNNING — NO ACTION REQUIRED</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True,stage='B')+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate:return ''
     st=candidate['state']
     if st=='B_REVIEW':
@@ -421,7 +421,7 @@ def c_execution_plan():
 
 def c_stage_body(candidate,job):
     if job and job['kind'] in ('C_PREFLIGHT','C_PREP_DISCOVERY','C_RUN'):
-        return '<div class="stage-work running"><h3>'+('C WORKFLOW — RUNNING · NO ACTION REQUIRED' if job['kind']=='C_RUN' else 'C PREFLIGHT — RUNNING · NO ACTION REQUIRED')+'</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True)+'<button onclick="location.reload()">Refresh</button></div>'
+        return '<div class="stage-work running"><h3>'+('C WORKFLOW — RUNNING · NO ACTION REQUIRED' if job['kind']=='C_RUN' else 'C PREFLIGHT — RUNNING · NO ACTION REQUIRED')+'</h3><p>'+html.escape(job['detail'])+'</p>'+expandable_log(job['log_path'],running=True,stage='C')+'<button onclick="location.reload()">Refresh</button></div>'
     if not candidate: return ''
     st=candidate['state']
     if st=='READY_FOR_C':
