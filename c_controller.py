@@ -119,7 +119,7 @@ try:
     if not config or not plan: raise RuntimeError("Stage1 freeze did not produce config and variant plan")
 
     from c_stage1_preflight import preflight
-    pre=preflight(config,plan,semantic)
+    pre=preflight(config,plan,semantic,croot/"stage1_runner_v3.py")
     save(runroot/"stage1_preflight.json",pre)
     if not pre["safe_to_run"]:
         save(summary,{"state":"C_STAGE1_PREFLIGHT_HOLD","candidate_id":a.candidate,
