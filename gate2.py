@@ -466,6 +466,8 @@ def c_stage_body(candidate,job):
                 actions+=form_buttons([('ACK_C_REVIEW','Record Stage 1 review acknowledgment')],'Human rationale for Stage 1 evidence review')
             elif st in ('C_COMPLETE_REVIEW','C_STAGE1_EVIDENCE_HOLD'):
                 actions+=form_buttons([('RECONCILE_C_STAGE1','Reconcile Stage 1 evidence')],'Human rationale for read-only evidence reconciliation')
+                if st=='C_STAGE1_EVIDENCE_HOLD':
+                    actions+=form_buttons([('RETRY_C_STAGE1','Retry governed C workflow')],'Human rationale for governed C retry')
         elif st=='C_BUILD_GOVERNANCE_HOLD':
             actions='<p>The builder reported a text hash instead of the exact generated file bytes. The proposed repair changes only the builder hash-reporting code, preserves the atomic verifier, and backs up the original file.</p>'+form_buttons([('REPAIR_C_SOURCE_AND_RETRY','Apply guarded source-hash repair and retry C')],'Human authorization for C source-hash repair')
         elif st=='C_SEMANTIC_HOLD':
@@ -510,7 +512,11 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='RECONCILE_C_STAGE1' and x['state'] in ('C_COMPLETE_REVIEW','C_STAGE1_EVIDENCE_HOLD'):
+            if d=='RETRY_C_STAGE1' and x['state']=='C_STAGE1_EVIDENCE_HOLD':
+                decision(c,r['id'],cid,d,rat)
+                c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human authorized C retry after missing Stage 1 evidence' WHERE id=?",(cid,))
+                queue(c,r['id'],cid,'C_RUN','Governed C retry after Stage 1 evidence HOLD')
+            elif d=='RECONCILE_C_STAGE1' and x['state'] in ('C_COMPLETE_REVIEW','C_STAGE1_EVIDENCE_HOLD'):
                 decision(c,r['id'],cid,d,rat)
                 from c_stage1_resolver import resolve_stage1
                 from operator_artifacts import record_artifact
