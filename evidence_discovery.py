@@ -26,7 +26,7 @@ def discover(root):
    "observed":state or "UNREADABLE","verdict":verdict,"stage":stage,
    "human_decision":None,"candidate_id":data.get("candidate_id") if isinstance(data,dict) else None,
    "version":None,"artifacts":[{"path":rel,"sha256":hashlib.sha256(raw).hexdigest()}]})
- return claims
+ return claims+discover_c(root)+discover_decisions(root)
 def report(root):
  claims=discover(root)
  return {"mode":"READ_ONLY_EVIDENCE_DISCOVERY","claims":claims,
