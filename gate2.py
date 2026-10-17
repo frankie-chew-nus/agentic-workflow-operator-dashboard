@@ -374,7 +374,9 @@ def c_stage_body(candidate,job):
     if st=='C_PREP_DISCOVERED':
         return '<div class="stage-work"><h3>ACTION REQUIRED — REVIEW C PREPARATION PATH</h3><p>No C build or backtest has executed. The existing preparation contracts identify a candidate-specific path and also expose scripts that should not be used.</p>'+spec_details('View C preparation path assessment',c_preparation_assessment())+spec_details('View raw C preparation command contracts',c_prepare_discovery_evidence())+form_buttons([('APPROVE_C_PREP_PATH','Approve C preparation path')],'Human rationale for C preparation path')+'</div>'
     if st=='C_PREP_PATH_APPROVED':
-        return '<div class="stage-work"><h3>C PREPARATION PATH APPROVED</h3><p>No C command has executed yet.</p>'+spec_details('View approved C preparation path',c_preparation_assessment())+'<p><b>Next:</b> create the B-002-specific spec boundary and run package before exposing Start C Preparation.</p></div>'
+        return '<div class="stage-work"><h3>ACTION REQUIRED — START GOVERNED C</h3><p>The C preparation path is approved. Starting C will commission the dashboard controller to create the B-002-specific boundary package and execute only the approved existing C chain, stopping automatically on any HOLD/non-zero result and before D.</p>'+spec_details('View approved C preparation path',c_preparation_assessment())+form_buttons([('START_GOVERNED_C','Start governed C workflow')],'Human rationale to commission governed C execution')+'</div>'
+    if st=='C_START_COMMISSIONED':
+        return '<div class="stage-work hold"><h3>C CONTROLLER HOLD — EXECUTION ADAPTER NOT YET COMMISSIONED</h3><p>Your Start C authority is recorded. No C command was executed because the end-to-end C controller adapter is not yet implemented. This is a development HOLD, not a workflow decision.</p>'+spec_details('View commissioned C preparation path',c_preparation_assessment())+'</div>'
     if st=='C_SYSTEM_HOLD':
         return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
     return ''
@@ -382,7 +384,7 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_START_COMMISSIONED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
@@ -413,7 +415,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='APPROVE_C_PREP_PATH':
+            if d=='START_GOVERNED_C':
+                decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human commissioned governed C workflow; controller execution adapter pending' WHERE id=?",(cid,))
+            elif d=='APPROVE_C_PREP_PATH':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_PREP_PATH_APPROVED',stage='C',detail='Human approved existing C preparation path; execution not started' WHERE id=?",(cid,))
             elif d=='DISCOVER_C_PREP':
                 decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'C_PREP_DISCOVERY','Read-only discovery of existing C preparation/freezing commands')
