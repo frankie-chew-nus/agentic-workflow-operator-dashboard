@@ -299,6 +299,38 @@ def c_mapping_plan():
       }
     }
 
+def c_preparation_assessment():
+    ev=c_prepare_discovery_evidence() or {}
+    scripts=ev.get('scripts',{})
+    return {
+      'state':'C_PREPARATION_PATH_IDENTIFIED',
+      'candidate_id':'CAND-B-002',
+      'version':'v2.1.3',
+      'recommended_existing_path':[
+        {'step':1,'script':'atomic_build_release_clean.py','purpose':'candidate-specific immutable C build/release','contract':'--spec --candidate [--run-root]'},
+        {'step':2,'script':'release_semantic_gate.py','purpose':'semantic gate against released specification','contract':'--release-record --spec --output'},
+        {'step':3,'script':'freeze_stage1_plan.py','purpose':'freeze B-002 Stage-1 config/variant plan','contract':'--manifest --release-record --spec [--output-dir]'},
+        {'step':4,'script':'stage1_runner_v3.py','purpose':'run Stage 1 only after semantic PASS','contract':'--config --plan --manifest --release-record --semantic-pass --output-dir'}
+      ],
+      'excluded_or_non_primary':{
+        'atomic_build_release.py':'Do not use: --help itself crashes with NameError wd; clean wrapper exists.',
+        'make_atomic_build.py':'Generator/maintenance utility; --help caused file creation output, so it is not a read-only execution contract.',
+        'file_authoritative_build.py':'Available alternative build path, but clean atomic wrapper is the clearer candidate-specific entry point.',
+        'semantic_repair_release.py':'Repair path only if semantic gate returns HOLD.',
+        'stage1_runner.py':'Older runner lacks required --semantic-pass boundary; prefer v3.'
+      },
+      'required_new_B002_artifacts':[
+        'candidate-specific spec input derived from frozen B v2.1.3',
+        'immutable implementation release record',
+        'semantic PASS evidence',
+        'B-002 Stage-1 config',
+        'B-002 variant plan',
+        'new B-002 run/output directories'
+      ],
+      'shared_existing_artifact':'evidence/market_data/stage1_manifest.json',
+      'execution_started':False
+    }
+
 def c_execution_plan():
     ev=c_preflight_evidence() or {}
     cand=(review_data() or {}).get('candidate',{})
@@ -340,7 +372,9 @@ def c_stage_body(candidate,job):
     if st=='C_MAPPING_REVIEWED':
         return '<div class="stage-work hold"><h3>C BINDING HOLD — B-002 INPUTS NOT YET FROZEN</h3><p>Historical B-001/B-003 artifacts will not be reused for CAND-B-002 v2.1.3.</p>'+spec_details('View reviewed C input candidates',c_mapping_plan())+form_buttons([('DISCOVER_C_PREP','Discover existing C preparation commands')],'Human rationale for read-only C preparation discovery')+'</div>'
     if st=='C_PREP_DISCOVERED':
-        return '<div class="stage-work"><h3>C PREPARATION COMMANDS DISCOVERED</h3><p>No C build or backtest has executed. Review the existing preparation/freezing command contracts.</p>'+spec_details('View C preparation command contracts',c_prepare_discovery_evidence())+'</div>'
+        return '<div class="stage-work"><h3>ACTION REQUIRED — REVIEW C PREPARATION PATH</h3><p>No C build or backtest has executed. The existing preparation contracts identify a candidate-specific path and also expose scripts that should not be used.</p>'+spec_details('View C preparation path assessment',c_preparation_assessment())+spec_details('View raw C preparation command contracts',c_prepare_discovery_evidence())+form_buttons([('APPROVE_C_PREP_PATH','Approve C preparation path')],'Human rationale for C preparation path')+'</div>'
+    if st=='C_PREP_PATH_APPROVED':
+        return '<div class="stage-work"><h3>C PREPARATION PATH APPROVED</h3><p>No C command has executed yet.</p>'+spec_details('View approved C preparation path',c_preparation_assessment())+'<p><b>Next:</b> create the B-002-specific spec boundary and run package before exposing Start C Preparation.</p></div>'
     if st=='C_SYSTEM_HOLD':
         return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
     return ''
@@ -348,7 +382,7 @@ def c_stage_body(candidate,job):
 def journey_html(r,cs,job):
     # Display stage follows the governed handoff state, not only the research row's historical stage.
     b2=next((x for x in cs if x['id']=='CAND-B-002'),None)
-    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
+    display_stage='C' if b2 and b2['state'] in ('READY_FOR_C','C_PREFLIGHT_RUNNING','C_READY_TO_INTEGRATE','C_PLAN_APPROVED','C_MAPPING_REVIEWED','C_PREP_DISCOVERED','C_PREP_PATH_APPROVED','C_SYSTEM_HOLD','C_RUNNING','C_REVIEW','C_PASS','C_FAIL') else r['stage']
     defs={'A':('Research & Source Qualification','Grounded Researcher + Human Operator'),'B':('Evidence Synthesis & Strategy Formulation','Knowledge Archivist + Strategy Optimizer + Human Operator'),'C':('Local Integration & Stage 1 Backtesting','Existing local C CLI / Local Backtest Runner'),'D':('Hidden OOS / Walk-Forward Validation','Local deterministic harness + MT5 + Human OOS boundary'),'E':('Commissioning Audit & Decision','Human Operator + deterministic commissioning checks')}
     order='ABCDE';idx=order.index(display_stage);candidate=next((x for x in cs if x['id']=='CAND-B-002'),None);cards=[]
     for i,k in enumerate(order):
@@ -379,7 +413,9 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='DISCOVER_C_PREP':
+            if d=='APPROVE_C_PREP_PATH':
+                decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_PREP_PATH_APPROVED',stage='C',detail='Human approved existing C preparation path; execution not started' WHERE id=?",(cid,))
+            elif d=='DISCOVER_C_PREP':
                 decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'C_PREP_DISCOVERY','Read-only discovery of existing C preparation/freezing commands')
             elif d=='APPROVE_C_MAPPING_REVIEW':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_MAPPING_REVIEWED',stage='C',detail='Human reviewed read-only C input inventory; exact bindings still require verification' WHERE id=?",(cid,))
