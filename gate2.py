@@ -29,8 +29,26 @@ CREATE TABLE IF NOT EXISTS artifacts(id TEXT PRIMARY KEY,candidate_id TEXT,kind 
     return c
 
 def decision(c,rid,cid,d,rat): c.execute('INSERT INTO decisions VALUES(?,?,?,?,?,?)',('DEC-'+uuid.uuid4().hex[:10].upper(),rid,cid,d,rat,now()))
+def reconcile_orphan_jobs(c):
+    # Jobs are executed only by this dashboard process. After a process restart,
+    # any persisted RUNNING row is historical evidence, not proof of a live child.
+    rows=list(c.execute("SELECT * FROM jobs WHERE state='RUNNING'"))
+    for j in rows:
+        c.execute("UPDATE jobs SET state='INTERRUPTED',finished_at=?,return_code=? WHERE id=?",(now(),-999,j['id']))
+        x=c.execute("SELECT * FROM candidates WHERE id=?",(j['candidate_id'],)).fetchone()
+        if x and str(j['kind']).startswith('C_'):
+            c.execute("UPDATE candidates SET state='C_SYSTEM_HOLD',stage='C',detail=? WHERE id=?",
+                      ('Previous C execution was interrupted by dashboard/process shutdown; preserved as '+j['id']+'. Fresh governed retry required.',j['candidate_id']))
+            runroot=BASE/'evidence'/'c_runs'/j['candidate_id']/(x['version'] or '')
+            progress=runroot/'stage1_output'/'progress.json'
+            if progress.exists():
+                archive=runroot/('interrupted_progress_'+j['id']+'.json')
+                try: progress.replace(archive)
+                except OSError: pass
+
 def init():
     c=cx()
+    reconcile_orphan_jobs(c)
     if not c.execute('SELECT 1 FROM research').fetchone():
         rid='RES-XAUUSD';c.execute('INSERT INTO research VALUES(?,?,?,?)',(rid,'XAUUSD M1 Price Action','ACTIVE','B'))
         for x in [('CAND-B-001','C_FAIL','C','v2.1.1','0/50 PASS',1),('CAND-B-002','B_REVIEW','B','v2.1.2','Corrected B release awaiting Human review',2),('CAND-B-003','C_FAIL','C','v2.1.1','0/7 PASS',3)]: c.execute('INSERT INTO candidates VALUES(?,?,?,?,?,?,?)',(x[0],rid,x[1],x[2],x[3],x[4],x[5]))
