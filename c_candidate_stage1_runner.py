@@ -5,7 +5,7 @@ enough for its declared parameter ranges instead of repeatedly copying/recomputi
 the entire history. This preserves completed-bar/no-lookahead semantics while
 making work O(bars * variants * bounded_window), not O(bars^2).
 """
-import argparse,json,hashlib,importlib.util,time,sys,math
+import argparse,json,hashlib,importlib.util,time,sys,math,uuid
 from pathlib import Path
 def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 def save(p,o):Path(p).write_text(json.dumps(o,indent=2),encoding="utf-8")
@@ -29,16 +29,16 @@ def main():
  bars=create_source("C","CSV",path=man["raw_file"]).get_bars()
  bars=[{**b,"Open":b.get("Open",b.get("open")),"High":b.get("High",b.get("high")),"Low":b.get("Low",b.get("low")),"Close":b.get("Close",b.get("close"))} for b in bars]
  m=loadmod(mp);schema=m.parameter_schema();window=max_lookback(schema)+32
- out=Path(a.output_dir);out.mkdir(parents=True,exist_ok=True);pf=out/"progress.json";t0=time.time();variants=plan["variants"];vtotal=len(variants);results=[]
- progress(pf,t0,"FAST_STAGE1",0,vtotal,f"bounded history window={window}; bars={len(bars)}")
+ out=Path(a.output_dir);out.mkdir(parents=True,exist_ok=True);pf=out/"progress.json";run_id="S1-"+uuid.uuid4().hex[:12].upper();t0=time.time();variants=plan["variants"];vtotal=len(variants);results=[]
+ progress(pf,t0,run_id,"FAST_STAGE1",0,vtotal,f"bounded history window={window}; bars={len(bars)}")
  for vn,v in enumerate(variants,1):
   params=v["parameters"];signals=[]
   for i in range(window-1,len(bars)):
    history=bars[i-window+1:i+1];prepared=m.prepare(history);sig=m.signal(history,prepared,params)
    if sig in (-1,1):signals.append({"index":i,"signal":sig})
   results.append({"variant_id":v["variant_id"],"parameters":params,"signal_count":len(signals),"state":"STAGE1_EXECUTED","signals_sha256":hashlib.sha256(json.dumps(signals,sort_keys=True).encode()).hexdigest()})
-  progress(pf,t0,"FAST_STAGE1",vn,vtotal,f"variant {vn}/{vtotal}; bounded history={window}")
+  progress(pf,t0,run_id,"FAST_STAGE1",vn,vtotal,f"variant {vn}/{vtotal}; bounded history={window}")
  rp=out/"variant_results.json";save(rp,results)
- summary={"state":"STAGE1_COMPLETE","variant_count":len(results),"pass_count":0,"fail_count":0,"human_hold_count":len(results),"classification":"EXECUTION_EVIDENCE_ONLY_NO_PERFORMANCE_PASS","execution_model":"BOUNDED_COMPLETED_HISTORY","history_window":window,"elapsed_seconds":round(time.time()-t0,3),"release_sha256":rec["module_sha256"],"semantic_gate_sha256":sha(a.semantic_pass),"results_sha256":sha(rp)}
- save(out/"summary.json",summary);progress(pf,t0,"COMPLETE",vtotal,vtotal,"Stage 1 execution evidence complete");print(json.dumps(summary,indent=2),flush=True)
+ summary={"state":"STAGE1_COMPLETE","variant_count":len(results),"pass_count":0,"fail_count":0,"human_hold_count":len(results),"classification":"EXECUTION_EVIDENCE_ONLY_NO_PERFORMANCE_PASS","run_id":run_id,"execution_model":"BOUNDED_COMPLETED_HISTORY","history_window":window,"elapsed_seconds":round(time.time()-t0,3),"release_sha256":rec["module_sha256"],"semantic_gate_sha256":sha(a.semantic_pass),"results_sha256":sha(rp)}
+ save(out/"summary.json",summary);progress(pf,t0,run_id,"COMPLETE",vtotal,vtotal,"Stage 1 execution evidence complete");print(json.dumps(summary,indent=2),flush=True)
 if __name__=="__main__":main()
