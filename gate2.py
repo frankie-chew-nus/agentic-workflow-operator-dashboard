@@ -537,9 +537,16 @@ def journey_html(r,cs,job):
         cards.append('<section class="journey-card '+cls+'"><div class="journey-head"><span class="stage-letter">'+k+'</span><div><b>'+title+'</b><div class="state">'+state+' · '+status+'</div></div></div><p><b>Owner:</b> '+owner+'</p>'+extra+'</section>')
     return '<div class="card"><h2>Full research journey</h2><div class="journey">'+'<div class="arrow">↓</div>'.join(cards)+'</div></div>'
 
+def d_sandbox_panel():
+    root=BASE/'evidence'/'d_sandbox_demo'
+    ev=load_json(root/'dashboard_summary.json') or {}
+    warning='<p><b>WORKFLOW TEST SANDBOX — NO PRODUCTION AUTHORITY</b></p><p>This exercises D using a typed test fixture. It does not assert C PASS, does not use B-002 as a production D input, and cannot authorize E.</p>'
+    body=spec_details('View D sandbox evidence',ev) if ev else '<p>No D sandbox run recorded yet.</p>'
+    return '<div class="card hold"><h2>D Workflow Development Sandbox</h2>'+warning+body+form_buttons([('RUN_D_SANDBOX','Run D sandbox test')],'Human authorization to run isolated D workflow test fixture')+'</div>'
+
 def render():
     c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cs=list(c.execute('SELECT * FROM candidates ORDER BY q'));job=active_job(c)
-    b='<div class=card><small>ACTIVE RESEARCH</small><h1>'+html.escape(r['title'])+'</h1></div>'+journey_html(r,cs,job)
+    b='<div class=card><small>ACTIVE RESEARCH</small><h1>'+html.escape(r['title'])+'</h1></div>'+journey_html(r,cs,job)+d_sandbox_panel()
     b+='<div class=card><h2>Candidate pipeline</h2><table><tr><th>ID</th><th>Version</th><th>Stage</th><th>State</th><th>Detail</th></tr>'
     for x in cs:b+='<tr'+(' class="candidate-active"' if x['id']=='CAND-B-002' else '')+'><td>'+x['id']+'</td><td>'+html.escape(x['version'] or '')+'</td><td>'+x['stage']+'</td><td>'+x['state']+'</td><td>'+html.escape(x['detail'])+'</td></tr>'
     b+='</table></div><div class=card><h2>Human decision ledger</h2><table><tr><th>Candidate</th><th>Decision</th><th>Rationale</th></tr>'
@@ -554,7 +561,11 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='RETRY_C_CANDIDATE_STAGE1' and x['state']=='C_STAGE1_INTERFACE_HOLD':
+            if d=='RUN_D_SANDBOX':
+                decision(c,r['id'],cid,d,rat)
+                from d_dashboard_sandbox import execute
+                result=execute(BASE/'evidence'/'d_sandbox_demo')
+            elif d=='RETRY_C_CANDIDATE_STAGE1' and x['state']=='C_STAGE1_INTERFACE_HOLD':
                 decision(c,r['id'],cid,d,rat)
                 c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human authorized candidate-driven Stage 1 retry using frozen B parameters only' WHERE id=?",(cid,))
                 queue(c,r['id'],cid,'C_RUN','Candidate-driven C retry: frozen B parameters → semantic gate → Stage 1')
