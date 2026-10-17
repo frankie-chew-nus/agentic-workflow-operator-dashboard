@@ -153,6 +153,24 @@ def c_run_cmd(candidate):
     log=BASE/'evidence'/'logs'/('C-RUN-'+candidate['id']+'-'+candidate['version'].replace('.','_')+'.log')
     return [sys.executable,str(script),'--c-root',str(CROOT),'--legacy-evidence',str(external_evidence_root()),'--candidate',candidate['id'],'--version',candidate['version'],'--run-root',str(runroot),'--log',str(log)]
 
+def c_run_log(candidate):
+    p=BASE/'evidence'/'logs'/('C-RUN-'+candidate['id']+'-'+candidate['version'].replace('.','_')+'.log')
+    return p
+
+def c_hold_html(candidate):
+    summary=c_run_summary(candidate) or {}
+    log=c_run_log(candidate)
+    reason=summary.get('error') or summary.get('state') or candidate['detail']
+    bits=['<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3>',
+          '<p><b>Reason:</b> '+html.escape(str(reason))+'</p>']
+    if log.exists(): bits.append(expandable_log(str(log)))
+    bits.append(spec_details('View C run summary',summary))
+    boundary=BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']/'c_boundary.json'
+    if boundary.exists(): bits.append(spec_details('View frozen C boundary',load_json(boundary)))
+    bits.append(form_buttons([('RETRY_C','Retry governed C workflow'),('RETURN_C_TO_B','Return to B'),('REJECT','Reject candidate')],'Human rationale for C recovery decision'))
+    bits.append('</div>')
+    return ''.join(bits)
+
 def c_run_summary(candidate):
     return load_json(BASE/'evidence'/'c_runs'/candidate['id']/candidate['version']/'c_run_summary.json')
 
@@ -404,7 +422,7 @@ def c_stage_body(candidate,job):
         title={'C_PASS':'C STAGE 1 PASS — HUMAN REVIEW REQUIRED','C_FAIL':'C STAGE 1 FAIL — WITHHELD FROM D','C_COMPLETE_REVIEW':'C STAGE 1 COMPLETE — HUMAN REVIEW REQUIRED','C_SEMANTIC_HOLD':'C SEMANTIC HOLD — STAGE 1 NOT RUN'}.get(st,st)
         return '<div class="stage-work '+('hold' if st!='C_PASS' else '')+'"><h3>'+title+'</h3><p>'+html.escape(candidate['detail'])+'</p>'+spec_details('View C run evidence summary',summary)+'</div>'
     if st=='C_SYSTEM_HOLD':
-        return '<div class="stage-work hold"><h3>ACTION REQUIRED — C SYSTEM HOLD</h3><p>'+html.escape(candidate['detail'])+'</p></div>'
+        return c_hold_html(candidate)
     return ''
 
 def journey_html(r,cs,job):
@@ -441,7 +459,11 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         n=int(self.headers.get('Content-Length',0));f=parse_qs(self.rfile.read(n).decode());c=cx();r=c.execute("SELECT * FROM research WHERE state='ACTIVE'").fetchone();cid=f.get('candidate',[''])[0];d=f.get('decision',[''])[0];rat=f.get('rationale',[''])[0].strip();x=c.execute('SELECT * FROM candidates WHERE id=?',(cid,)).fetchone()
         if x and len(rat)>=12 and not active_job(c):
-            if d=='START_GOVERNED_C':
+            if d=='RETRY_C':
+                decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human authorized governed C retry' WHERE id=?",(cid,));queue(c,r['id'],cid,'C_RUN','Governed C retry: boundary → build → semantic gate → plan freeze → Stage 1')
+            elif d=='RETURN_C_TO_B':
+                decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='B_REVIEW',stage='B',detail='Human returned candidate from C to B review' WHERE id=?",(cid,))
+            elif d=='START_GOVERNED_C':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_START_COMMISSIONED',stage='C',detail='Human commissioned governed C workflow; controller execution adapter pending' WHERE id=?",(cid,))
             elif d=='APPROVE_C_PREP_PATH':
                 decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='C_PREP_PATH_APPROVED',stage='C',detail='Human approved existing C preparation path; execution not started' WHERE id=?",(cid,))
