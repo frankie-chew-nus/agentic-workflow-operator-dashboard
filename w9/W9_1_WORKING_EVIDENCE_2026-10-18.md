@@ -64,3 +64,8 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 - `b_to_c_release_v2_1.json`: `RELEASE_TO_C`, research commission XAUUSD M1 Price Action, three candidates `CAND-B-001`, `CAND-B-002`, `CAND-B-003`, all v2.1, frozen register SHA matching above.
 - Recorded B information boundary excludes Stage 1 CSV, backtest results, MT5/OOS evidence and performance rankings. C owns Stage 1 data, mandatory 9-pip friction, evaluation settings, bounded search and performance/risk calculations. A declared boundary in the record is not proof of enforced filesystem permissions.
 - Release means permission to enter C for implementation/testing; no performance PASS, D authority or commissioning follows.
+
+## B v2.1.1 frozen consistency correction — reviewed source records
+- `candidate_strategy_register_v2_1_1_frozen.json`: `CLERICAL_CONSISTENCY_CORRECTED_FROZEN`, Human Operator authority dated 2026-10-13, reason `FROZEN_SPEC_INTERNAL_MISMATCH`; no performance evidence seen. CAND-B-002 remaining NR7 references changed to bounded NR-N, and hardcoded breakout entry value replaced by existing `breakout_buffer` parameter. Explicitly no hypothesis, bounds, source or C evaluation-condition changes.
+- `b_to_c_release_v2_1_1.json`: `RELEASE_TO_C`, 3 candidates (B-001/B-002/B-003) all v2.1.1, frozen register SHA-256 `2d757b7d2dbcb7f623ac7c0fde68fa74e71915107912fa2ba9e7329c12883e01`; B had no performance evidence and C retains evaluation authority.
+- v2.1.1 register repeats v2 token usage 1628/1265/2893. **Do not double-count** as a new API request absent independent request evidence. Additional Human review time unmeasured.
