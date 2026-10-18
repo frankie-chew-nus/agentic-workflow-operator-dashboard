@@ -47,3 +47,9 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 - 2026-10-13 `20261013T023822439518Z_b_formulate.json` records 3 candidates and SHA-256 `47e987ea3599b9ea1d9d0b9d587d2e0da3256d84c937864450ea8785c2d0a65a` for `candidate_strategy_register_v1.json`.
 - Register state `FORMULATED`, model `gemini-3.1-flash-lite`; `CAND-B-001` exhaustion-candle mean reversion, `CAND-B-002` NR7 breakout continuation, `CAND-B-003` pin-bar reversal. All cite approved `SRC-A-003`. These are hypotheses, not approved C releases or demonstrated profitable strategies.
 - Recorded initial B usage: prompt 436, candidate output 1384, total 1820 tokens; monetary cost uncalculated. Later B revisions/usage remain to inspect.
+
+## B v1 return and v2 executability — reviewed source records
+- `b_v1_return_record.json`: `B_RETURN_FOR_CORRECTION`, `RETURN_TO_B`; all three candidates listed with specification corrections. B owns hypothesis/specification; C owns Stage 1 data, fixed 9-pip friction, execution/evaluation configuration, optimization, and performance testing. B withheld from XAUUSD M1 CSV, Stage 1 results, MT5/OOS data, and performance rankings.
+- CAND-B-001: clarify absolute body/range mathematics, remove execution cost/latency assumptions, define timezone. CAND-B-002: resolve volume input vs OHLC proxy, clarify market-open language, remove execution assumptions. CAND-B-003: absolute body, pivot tolerance, remove execution assumptions.
+- `b_v2_executability_check.json`: state PASS; 3/3 v2 candidate executability checks PASS, zero failures recorded. **Not** C performance PASS or evidence of strategy qualification.
+- Cost impact: revision and governance work exists; elapsed Human time, revision token usage and money remain unmeasured until separate logs inspected.
