@@ -37,3 +37,8 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 2. Inspect B formulation/revision artifacts and any token/time records.
 3. Separate one-time development investment, per-commission operating cost, waiting, rework, and unmeasured Human time.
 4. Publish only sanitized evidence or digests after privacy/proprietary-content review; never upload raw proprietary strategy code, private paths, credentials or restricted data by default.
+
+## A approval detail verified from underlying registers (2026-10-18 review)
+- Original `research_register_approved_v1.json` records 5 discovered sources; only `SRC-A-003` has `verification=VERIFIED`, `operator_decision=APPROVE`, and document verification evidence. Four others remain `PENDING`/`NOT_VERIFIED`, **not** explicit REJECT decisions.
+- `a_to_b_release_v1.json`: state `RELEASE`, reason `HUMAN_APPROVED_AND_VERIFIED`, exactly one released source `SRC-A-003`; document SHA-256 `2f46c6c053afeb048ba0ed54444bc36cf14e13808604ea9ab6c651e80ae01a3d`; register SHA-256 `b32bef938a3590406e53f0275669efba01b43ef46d3ac11163cb6e972c9d0cf0`.
+- Governance denominator: 1/5 admitted into B. This establishes bounded source release, not scientific validity or XAUUSD M1 generalisability. Source assessment token usage is present in approved register but billing/total A costs are not yet reconciled.
