@@ -74,3 +74,8 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 - `20261012T145108721087Z_search.json`: kind `search`, output `research_register_v1.json`, reported SHA-256 `5786c8c979c386d4b09e6f32b8c44a4ff87c0a1739d3a3d79637549870471b96`, source_count 5.
 - `20261012T145308631086Z_assess.json`: kind `assess`, output `research_register_assessed_v1.json`, reported SHA-256 `6419bd97570fdcf1dbf7382959d5219dba38b2cfb5eb4a869dffdb7d81d62730`, source_count 5.
 - Neither operation log contains token consumption, API price, or elapsed time. Research search API costs remain unknown. Underlying assessment register required to reconcile model usage and avoid treating `totalTokenCount` as input+output only (it may include reasoning tokens).
+
+## A assessment token ledger — assessed register reviewed
+- `research_register_assessed_v1.json`, model `gemma-4-26b-a4b-it`, 5 assessed source entries. Per-source (prompt, candidate output, thoughts, reported total): SRC-A-001 (337,96,537,970); SRC-A-002 (1043,121,771,1935); SRC-A-003 (1092,135,676,1903); SRC-A-004 (445,102,711,1258); SRC-A-005 (1259,120,719,2098).
+- Sum: 4176 prompt + 574 candidate output + 3414 thoughts = **8164 reported total tokens**. This is assessment model usage only; not Perplexity search API charges.
+- B v1 1820 + B v2 2893 = 4713 recorded tokens. Combined A assessment + B initial/revision = **12877 recorded tokens** across these specific operations. Do not infer total A→C bill or cost savings. Source assessment register has `DISCOVERED_NOT_VERIFIED` status at that point; later approval is separately evidenced.
