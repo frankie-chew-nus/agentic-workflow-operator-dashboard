@@ -53,3 +53,8 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 - CAND-B-001: clarify absolute body/range mathematics, remove execution cost/latency assumptions, define timezone. CAND-B-002: resolve volume input vs OHLC proxy, clarify market-open language, remove execution assumptions. CAND-B-003: absolute body, pivot tolerance, remove execution assumptions.
 - `b_v2_executability_check.json`: state PASS; 3/3 v2 candidate executability checks PASS, zero failures recorded. **Not** C performance PASS or evidence of strategy qualification.
 - Cost impact: revision and governance work exists; elapsed Human time, revision token usage and money remain unmeasured until separate logs inspected.
+
+## B v2 revision resource evidence — reviewed 2026-10-18
+- `20261013T025324682438Z_b_v2_revise.json` reports `gemini-3.1-flash-lite`, three candidates, output `candidate_strategy_register_v2.json`, SHA-256 `89fb05814bdcb9d15c2409683b5a0429336e71835db7ea51373b7e83c81e0cae`.
+- v2 register state `REFORMULATED_AFTER_RETURN`, linked to v1 register and return record hashes. All three candidate specs revised; no claim of C performance qualification.
+- v2 recorded tokens: 1628 input + 1265 output = 2893. v1: 436 input + 1384 output = 1820. Combined recorded formulation/revision = 4713 tokens, of which 2893 (~61.4%) belong to revision. Excludes separate governance-check usage and unmeasured Human effort. API dollars not calculated.
