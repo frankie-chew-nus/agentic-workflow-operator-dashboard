@@ -69,3 +69,8 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 - `candidate_strategy_register_v2_1_1_frozen.json`: `CLERICAL_CONSISTENCY_CORRECTED_FROZEN`, Human Operator authority dated 2026-10-13, reason `FROZEN_SPEC_INTERNAL_MISMATCH`; no performance evidence seen. CAND-B-002 remaining NR7 references changed to bounded NR-N, and hardcoded breakout entry value replaced by existing `breakout_buffer` parameter. Explicitly no hypothesis, bounds, source or C evaluation-condition changes.
 - `b_to_c_release_v2_1_1.json`: `RELEASE_TO_C`, 3 candidates (B-001/B-002/B-003) all v2.1.1, frozen register SHA-256 `2d757b7d2dbcb7f623ac7c0fde68fa74e71915107912fa2ba9e7329c12883e01`; B had no performance evidence and C retains evaluation authority.
 - v2.1.1 register repeats v2 token usage 1628/1265/2893. **Do not double-count** as a new API request absent independent request evidence. Additional Human review time unmeasured.
+
+## A search and assessment operation logs — reviewed 2026-10-18
+- `20261012T145108721087Z_search.json`: kind `search`, output `research_register_v1.json`, reported SHA-256 `5786c8c979c386d4b09e6f32b8c44a4ff87c0a1739d3a3d79637549870471b96`, source_count 5.
+- `20261012T145308631086Z_assess.json`: kind `assess`, output `research_register_assessed_v1.json`, reported SHA-256 `6419bd97570fdcf1dbf7382959d5219dba38b2cfb5eb4a869dffdb7d81d62730`, source_count 5.
+- Neither operation log contains token consumption, API price, or elapsed time. Research search API costs remain unknown. Underlying assessment register required to reconcile model usage and avoid treating `totalTokenCount` as input+output only (it may include reasoning tokens).
