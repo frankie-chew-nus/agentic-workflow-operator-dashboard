@@ -58,3 +58,9 @@ Scope: **Week 9 W9.1 working evidence only**, not a complete Gate 2 evidence inv
 - `20261013T025324682438Z_b_v2_revise.json` reports `gemini-3.1-flash-lite`, three candidates, output `candidate_strategy_register_v2.json`, SHA-256 `89fb05814bdcb9d15c2409683b5a0429336e71835db7ea51373b7e83c81e0cae`.
 - v2 register state `REFORMULATED_AFTER_RETURN`, linked to v1 register and return record hashes. All three candidate specs revised; no claim of C performance qualification.
 - v2 recorded tokens: 1628 input + 1265 output = 2893. v1: 436 input + 1384 output = 1820. Combined recorded formulation/revision = 4713 tokens, of which 2893 (~61.4%) belong to revision. Excludes separate governance-check usage and unmeasured Human effort. API dollars not calculated.
+
+## B v2.1 clarification and B-to-C release — original records reviewed
+- `20261013T030011093163Z_operator_clarification.json`: `RECORDED`; parent v2 SHA-256 `89fb05814bdcb9d15c2409683b5a0429336e71835db7ea51373b7e83c81e0cae`; frozen v2.1 SHA-256 `be2ad7c4ec6ee868a9f4d42e94a49dc0f31523539da7cc81d2890e8b54c4a410`; `performance_evidence_seen=false`. This records a clarification operation, but is not itself a signed independent Human decision.
+- `b_to_c_release_v2_1.json`: `RELEASE_TO_C`, research commission XAUUSD M1 Price Action, three candidates `CAND-B-001`, `CAND-B-002`, `CAND-B-003`, all v2.1, frozen register SHA matching above.
+- Recorded B information boundary excludes Stage 1 CSV, backtest results, MT5/OOS evidence and performance rankings. C owns Stage 1 data, mandatory 9-pip friction, evaluation settings, bounded search and performance/risk calculations. A declared boundary in the record is not proof of enforced filesystem permissions.
+- Release means permission to enter C for implementation/testing; no performance PASS, D authority or commissioning follows.
