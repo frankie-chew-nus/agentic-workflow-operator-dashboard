@@ -1,0 +1,30 @@
+{
+  "evidence_class": "W10_C_STAGE_STATIC_DEPENDENCY_TEST",
+  "scope": "Actual W10 c_orchestrator_v3.static() function extracted by AST; no C orchestration or B-to-C integration executed",
+  "timestamp_utc": "2026-10-19T11:14:09.289058+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "71f9eb7dc00574d0363fb7e1babaf878a76b995b",
+  "source_path": "Gate2_Evidence/Journal10_Dependency_Policy_FINAL/J10-E4_Revised_Policy/c_orchestrator_v3.py",
+  "source_sha256": "7704ee4223d2937f8b7df984fab91f4c3b9edb919aeead67d106543155236fab",
+  "test_sha256": "7532affe151b330c18da38e590339e999b51e65ee1590475bc8debca957a1d4c",
+  "n": 3,
+  "denominator": 3,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T05_A_local_numpy_pandas_permitted",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_B_remote_dependency_flagged",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_C_unknown_dependency_requires_review",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "2f80dec6f12b3149f24e9922ab2866cb4ad3b13c3ace62e03ad544a1d5297482",
+  "sanitized_log": "test_T05_A_local_numpy_pandas_permitted ... ok\ntest_T05_B_remote_dependency_flagged ... ok\ntest_T05_C_unknown_dependency_requires_review ... ok\nRan 3 tests\nOK\n",
+  "production_authority": false
+}
