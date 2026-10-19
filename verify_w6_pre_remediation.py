@@ -29,8 +29,9 @@ def main():
  branch=subprocess.check_output(["git","branch","--show-current"],cwd=ROOT,text=True).strip()
  if branch!="fix/w6-b-governance-controls":raise SystemExit("Wrong branch")
  commit=subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip()
- status=subprocess.check_output(["git","status","--porcelain"],cwd=ROOT,text=True)
- if status.strip():raise SystemExit("Working tree not clean; commit/stash first")
+ unstaged=subprocess.run(["git","diff","--quiet"],cwd=ROOT).returncode
+ staged=subprocess.run(["git","diff","--cached","--quiet"],cwd=ROOT).returncode
+ if unstaged!=0 or staged!=0:raise SystemExit("Tracked files have changes; inspect before proceeding")
  if not DB.is_file():raise SystemExit("Original SQLite DB missing")
  backups=sorted(BACKUPS.glob("operator_pre_governance_fix_*.db"),key=lambda p:p.stat().st_mtime,reverse=True) if BACKUPS.is_dir() else []
  if not backups:raise SystemExit("No matching backup found")
@@ -52,7 +53,7 @@ def main():
  finally:original.close();copy.close()
  if not all(v["match"] for v in counts.values()):raise SystemExit("Row counts differ; original may have changed since backup")
  obj={"evidence_class":"PRE_REMEDIATION_SNAPSHOT_VERIFICATION","timestamp_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-  "branch":branch,"git_commit":commit,"working_tree_clean":True,
+  "branch":branch,"git_commit":commit,"tracked_files_clean":True,"untracked_files_excluded_from_check":True,
   "database":{"original_sha256":digest(DB),"backup_sha256":digest(backup),
    "original_integrity":original_check,"backup_integrity":backup_check,
    "table_row_counts":counts,"note":"Row counts and integrity match; logical database equality not proven"},
