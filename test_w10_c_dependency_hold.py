@@ -23,7 +23,7 @@ def inspect():
  # Inspect the actual control-flow syntax, not a mock of the expected result.
  if "functional(mp, c, ct) if not cf and (not sf) else" not in source:
   raise AssertionError("Functional gate ordering changed; review required")
- if "if not fail:" not in source or '"IMPLEMENTATION_READY"' not in source:
+ if "if not fail:" not in source or "IMPLEMENTATION_READY" not in source:
   raise AssertionError("Release condition changed; review required")
  if '"HOLD_FOR_HUMAN"' not in source:raise AssertionError("HOLD path missing")
  return env["static"]
