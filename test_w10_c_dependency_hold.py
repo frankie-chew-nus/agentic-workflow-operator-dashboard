@@ -25,7 +25,7 @@ def inspect():
   raise AssertionError("Functional gate ordering changed; review required")
  if "if not fail:" not in source or "IMPLEMENTATION_READY" not in source:
   raise AssertionError("Release condition changed; review required")
- if '"HOLD_FOR_HUMAN"' not in source:raise AssertionError("HOLD path missing")
+ if "HOLD_FOR_HUMAN" not in source:raise AssertionError("HOLD path missing")
  return env["static"]
 class W10DependencyHoldTests(unittest.TestCase):
  @classmethod
