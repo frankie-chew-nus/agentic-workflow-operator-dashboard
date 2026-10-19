@@ -1,0 +1,30 @@
+{
+  "evidence_class": "W10_C_STATIC_TO_FUNCTIONAL_ROUTING_TEST",
+  "scope": "Actual W10 static function and AST routing inspection; NOT full orchestrator execution or B-to-C enforcement",
+  "timestamp_utc": "2026-10-19T14:02:29.769695+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "6583bd9ebdc3360e0d9fb07c6e42fb671e803b1c",
+  "source_path": "Gate2_Evidence/Journal10_Dependency_Policy_FINAL/J10-E4_Revised_Policy/c_orchestrator_v3.py",
+  "source_sha256": "7704ee4223d2937f8b7df984fab91f4c3b9edb919aeead67d106543155236fab",
+  "test_sha256": "2e4726cf49cba84539ee56f11c153a304dc4cba3876b9734bab35a9ff35ae78a",
+  "n": 3,
+  "denominator": 3,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T05_D_prohibited_import_prevents_functional_gate",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_E_unknown_import_requires_review",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_F_permitted_import_continues_only_to_functional_checks",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "3c183ed6a6cb4aedecfb8370322ef4f9d1956ad4972fc743154973b1b1d1d355",
+  "sanitized_log": "test_T05_D_prohibited_import_prevents_functional_gate ... ok\ntest_T05_E_unknown_import_requires_review ... ok\ntest_T05_F_permitted_import_continues_only_to_functional_checks ... ok\nRan 3 tests\nOK\n",
+  "production_authority": false
+}
