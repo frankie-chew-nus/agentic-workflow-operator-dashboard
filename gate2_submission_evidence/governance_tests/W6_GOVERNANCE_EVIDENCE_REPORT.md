@@ -40,3 +40,33 @@ The original W6.3 T01–T10 outcomes were **synthetic paper walkthroughs**. Subs
 4. Record before/after outcomes separately; do not silently replace failed evidence with later PASS results.
 
 **Production D/E authority:** Unchanged; this report grants none. **Strategy logic:** Unchanged. **Evidence principle:** Record what was demonstrated; never upgrade proof.
+
+
+## Post-audit active boundary and isolated remediation (19 October 2026)
+
+The dashboard invokes `gate2_operator_app_v1/b_resume_model_flow_v1_1.py` by default (unless `GATE2_B_ADAPTER` overrides it). This delegates to `b_resume.py`, `b_model_adapter.py`, `b_regression_guard.validate`, then `b_resume.py` again. The active B resume boundary was exercised with disposable SQLite databases and synthetic candidate records; it was **not** allowed to touch production evidence.
+
+| Test | Active `b_resume.py` baseline | Proposed isolated policy |
+|---|---|---|
+| T04 unavailable resource | FAIL: returned 0 rather than expected HOLD | PASS: unavailable resource causes HOLD |
+| T05 opaque black-box dependency | FAIL: returned 0 rather than expected HOLD | PASS: unapproved dependency causes HOLD |
+| T09 fourth candidate | FAIL: returned 0 rather than expected HOLD | PASS: trusted synthetic count 3 causes HOLD |
+| T10 unauthorized rule change | FAIL: returned 0 rather than expected HOLD | PASS: candidate-declared change causes HOLD |
+
+**Baseline:** 4/4 negative integration tests failed (meaning the expected HOLD was not enforced by this boundary). The observed exit code 0 led to `B_CORRECTED_AWAITING_HUMAN_RELEASE`, **not direct C release**. These tests do not prove the full production release path is vulnerable.
+
+**Remediation:** `b_boundary_policy_v1.py` passed **7/7 unit tests** (Operator-reported local execution). The isolated `isolated_b_policy_harness.py` passed **6/6 synthetic tests**, with its captured JSON verified in GitHub. These tests show proposed policy behavior, **not** repaired active adapter behavior.
+
+**Trusted-input audit:** The existing SQLite database has `research`, `candidates`, `decisions`, `jobs`, and `artifacts` tables. Decision-type counts were 9 `RETURN_TO_B` and 2 `RETRY_B`. Authoritative resource inventory, dependency allowlist, commission-level release count and governance-rule-change authority were **not established**. Synthetic trusted context used by the harness must not be mistaken for production authoritative inputs.
+
+**Backup protection:** The pre-remediation manifest records SQLite integrity `ok` for original and backup, matching table counts, and SHA-256 fingerprints of three active adapters. This is a backup verification, not proof of logical row-for-row equivalence. The original database and backups remain local.
+
+### Additional verified evidence
+
+- `w6_active_b_t04_t05_t09_t10_findings.json` — active-boundary 4/4 negative findings; execution commit `a278d19a15224a00ba6f9f60e61bd7d270fcfd88`; GitHub blob `4f6d83645a5a3ab6d7a5acbe8a2c89025db2cc9b`.
+- `w6_pre_remediation_manifest.json` — backup/integrity and adapter-hash manifest; preservation commit `689b703`; GitHub blob `cc78a5e5e6de5f97fc307a65d7aafd334d58fb61`.
+- `w6_isolated_remediation_result.json` — 6/6 isolated tests; execution commit `1d22ffcb2eac52c6637dd7787d5c40759faa8d74`; GitHub blob `b1c8838d4af766864c87534f0898334a3e73e560`.
+
+**Operator decision:** Preserve existing workflow and negative findings; defer active integration until authoritative inputs and full-path regression tests are established. No merge into `main` is authorized. This decision is documented in the project conversation; it is not represented here as a signed Human decision artifact.
+
+**Boundary:** No strategy logic was changed, no production D/E authority was granted, and no active B adapter was modified. The tested remediation is isolated and must not be described as production deployment.
