@@ -12,7 +12,7 @@ def load_static():
  tree=ast.parse(SOURCE.read_text(encoding="utf-8"))
  functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="static"]
  assignments=[n for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ("ALLOW","BLOCK") for t in n.targets)]
- if len(functions)!=1 or len(assignments)!=1:raise AssertionError("Unexpected checker layout")
+ if len(functions)!=1 or not assignments:raise AssertionError("Unexpected checker layout")
  env={"ast":ast}
  exec(compile(ast.Module(body=assignments+functions,type_ignores=[]),str(SOURCE),"exec"),env)
  return env["static"]
