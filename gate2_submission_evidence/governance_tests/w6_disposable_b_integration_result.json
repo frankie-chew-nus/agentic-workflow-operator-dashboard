@@ -1,0 +1,47 @@
+{
+  "evidence_class": "DISPOSABLE_B_ADAPTER_INTEGRATION_TEST",
+  "scope": "Synthetic trusted context, temporary SQLite, copied b_resume.py; NOT active B workflow integration",
+  "timestamp_utc": "2026-10-20T02:05:17.292812+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "d2988d12bc6305b2b1f7bbe732eb09b63c479516",
+  "source_sha256": {
+    "b_boundary_policy_v1.py": "70a46b64c7ec0d521e9184a5fd89e7a44d573b2d21d4d19e14fb59c2f5518dcc",
+    "isolated_b_preflight_adapter.py": "5a91fa0bd9390b0b15e584e0b7e15cfc3ea4b480204a57fcc17f5aa4db177ee6",
+    "disposable_b_integration.py": "fdd16704126e83e852c8e8cc5e850bf7f8690bc43d5c52a71b107c1fba8fbbda",
+    "test_disposable_b_integration.py": "36355f7eb05a6c1e0e5d7785cd0f64581cfed969df41d15f6d6eb994fb49c247"
+  },
+  "copied_adapter_source_sha256": "e1510bb49fe8f8213327f61d25beab2842c9d3f5ff8d8240f233d3e76192d316",
+  "n": 5,
+  "denominator": 5,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T04_blocks_before_adapter",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_blocks_before_adapter",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_blocks_before_adapter",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_blocks_before_adapter",
+      "result": "ok"
+    },
+    {
+      "name": "test_valid_fixture_reaches_copied_adapter_only",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "c5de440278003e38f452fdb644ca326645c6c62615bd8e185cf3188d4c29f4ea",
+  "sanitized_log": "test_T04_blocks_before_adapter ... ok\ntest_T05_blocks_before_adapter ... ok\ntest_T09_blocks_before_adapter ... ok\ntest_T10_blocks_before_adapter ... ok\ntest_valid_fixture_reaches_copied_adapter_only ... ok\nRan 5 tests\nOK\n",
+  "production_authority": false,
+  "remaining_limitations": [
+    "No authoritative live resource inventory or dependency allowlist",
+    "No authoritative commission release count or rule-change approval",
+    "No active adapter modification or complete B-to-C end-to-end test"
+  ]
+}
