@@ -1,0 +1,54 @@
+{
+  "evidence_class": "SYNTHETIC_CONSOLIDATED_B_PREFLIGHT_TEST",
+  "scope": "Experimental consolidated gate with synthetic context; not connected to active B adapter",
+  "timestamp_utc": "2026-10-20T04:06:40.852740+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "5798637b52a8f43eba9c081dc73cf934b929d7cb",
+  "source_sha256": {
+    "b_boundary_policy_v1.py": "70a46b64c7ec0d521e9184a5fd89e7a44d573b2d21d4d19e14fb59c2f5518dcc",
+    "b_commission_release_ledger_v1.py": "94977415a3d3a2254115ddde675706685d475f5a1ff304ef67cac5978d66c122",
+    "b_policy_change_gate_v1.py": "5979a4eb9490c798ca5aa937f863c96404b413668c27c9006ac94e30a566ff3a",
+    "consolidated_b_governance_preflight.py": "d4f951d7d0b6f8c61c5ae4f03b9d6ed460d9ca5121799c7600467c917cc0f5a2",
+    "test_consolidated_b_governance_preflight.py": "1f349e4d670ec65ad0700afe9d3652d40b80149a161363714a4f44da0267cb99"
+  },
+  "n": 7,
+  "denominator": 7,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T04_missing_resource",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_opaque_dependency",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_fourth_candidate",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_unapproved_policy_change",
+      "result": "ok"
+    },
+    {
+      "name": "test_missing_context_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_unverified_decisions_hold",
+      "result": "ok"
+    },
+    {
+      "name": "test_valid_fixture_no_release_authority",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "2b0da238561e29eb6e1343565a196e670d84f62d5cd43a01f7d6a981c83ff3f6",
+  "sanitized_log": "test_T04_missing_resource ... ok\ntest_T05_opaque_dependency ... ok\ntest_T09_fourth_candidate ... ok\ntest_T10_unapproved_policy_change ... ok\ntest_missing_context_holds ... ok\ntest_unverified_decisions_hold ... ok\ntest_valid_fixture_no_release_authority ... ok\nRan 7 tests\nOK\n",
+  "production_authority": false,
+  "limitations": [
+    "Trusted context is synthetic, not authenticated",
+    "No active B-to-C integration or production authorization"
+  ]
+}
