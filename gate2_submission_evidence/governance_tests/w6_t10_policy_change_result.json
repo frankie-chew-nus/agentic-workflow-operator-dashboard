@@ -1,0 +1,51 @@
+{
+  "evidence_class": "SYNTHETIC_T10_POLICY_CHANGE_TEST",
+  "scope": "Experimental authorization gate; synthetic decisions, no authenticated Human approval or active workflow integration",
+  "timestamp_utc": "2026-10-20T03:17:22.352261+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "1f5b5bad7e3d0e977c3b196b01dfd952c97f5c4d",
+  "source_sha256": {
+    "b_policy_change_gate_v1.py": "5979a4eb9490c798ca5aa937f863c96404b413668c27c9006ac94e30a566ff3a",
+    "test_b_policy_change_gate_v1.py": "9a78a8c846a3e8c32bb8d4950faf577bc383109fbc62804ad699957ce712bcb1"
+  },
+  "n": 7,
+  "denominator": 7,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T10_ai_actor_denied",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_candidate_limit_expansion_denied",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_production_authority_denied",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_synthetic_valid_shape",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_tampered_proposal_denied",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_unregistered_decision_denied",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_unverified_prior_policy_denied",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "3bc3347be3f14feec93654999a81cc6b98416d316f81069d880160eb4ddc761b",
+  "sanitized_log": "test_T10_ai_actor_denied ... ok\ntest_T10_candidate_limit_expansion_denied ... ok\ntest_T10_production_authority_denied ... ok\ntest_T10_synthetic_valid_shape ... ok\ntest_T10_tampered_proposal_denied ... ok\ntest_T10_unregistered_decision_denied ... ok\ntest_T10_unverified_prior_policy_denied ... ok\nRan 7 tests\nOK\n",
+  "production_authority": false,
+  "limitations": [
+    "Synthetic decision registry does not authenticate Human identity",
+    "No integration with active B release boundary"
+  ]
+}
