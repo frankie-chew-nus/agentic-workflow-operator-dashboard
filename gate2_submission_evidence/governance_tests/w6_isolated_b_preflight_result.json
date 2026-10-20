@@ -1,0 +1,48 @@
+{
+  "evidence_class": "ISOLATED_B_PREFLIGHT_SYNTHETIC_TEST",
+  "scope": "Synthetic policy context; NOT integrated with active B workflow or production authority",
+  "timestamp_utc": "2026-10-20T01:26:56.080224+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "0b69d84f31a0f38db5193a18c90fa534ecd737dd",
+  "source_sha256": {
+    "b_boundary_policy_v1.py": "70a46b64c7ec0d521e9184a5fd89e7a44d573b2d21d4d19e14fb59c2f5518dcc",
+    "isolated_b_preflight_adapter.py": "5a91fa0bd9390b0b15e584e0b7e15cfc3ea4b480204a57fcc17f5aa4db177ee6",
+    "test_isolated_b_preflight_adapter.py": "14a7da3d8988f9a4a020bbdbdc43992765eeca8fffd0332860b32d665ab9ab89"
+  },
+  "n": 7,
+  "denominator": 7,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T04_missing_resource_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_T05_opaque_dependency_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_fourth_release_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_T10_rule_change_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_missing_count_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_untrusted_context_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_valid_fixture_cannot_grant_release",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "943ed4a120c005df1004ba92c5dd4ef0cce8ad2fa9fd69cd60bf2a22da32473d",
+  "sanitized_log": "test_T04_missing_resource_holds ... ok\ntest_T05_opaque_dependency_holds ... ok\ntest_T09_fourth_release_holds ... ok\ntest_T10_rule_change_holds ... ok\ntest_missing_count_holds ... ok\ntest_untrusted_context_holds ... ok\ntest_valid_fixture_cannot_grant_release ... ok\nRan 7 tests\nOK\n",
+  "production_authority": false
+}
