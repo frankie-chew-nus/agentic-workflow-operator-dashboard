@@ -4,7 +4,8 @@ from test_disposable_b_integration import DisposableIntegrationTests
 from controlled_b_integration_candidate import run
 from b_policy_change_gate_v1 import digest
 
-class ControlledBIntegrationTests(DisposableIntegrationTests):
+class ControlledBIntegrationTests(unittest.TestCase):
+ setUp=DisposableIntegrationTests.setUp
  def ctx(self,n=0,**kw):
   prior={"revision":1,"production_authority":False,"max_released_candidates":3}
   d={"fixture_only":True,"available_resources":{"OHLC","ATR"},
