@@ -1,0 +1,52 @@
+{
+  "evidence_class": "SYNTHETIC_COMMISSION_RELEASE_LEDGER_TEST",
+  "scope": "Experimental ledger snapshot validator; synthetic decisions only; no production release authority",
+  "timestamp_utc": "2026-10-20T03:09:55.938933+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "7990bb4de47555ea88ed8d91ee2b1508c2c1b6c8",
+  "source_sha256": {
+    "b_commission_release_ledger_v1.py": "94977415a3d3a2254115ddde675706685d475f5a1ff304ef67cac5978d66c122",
+    "test_b_commission_release_ledger_v1.py": "6f65ae5b4caec5e41e171bcac62e889b54378b39aacea6721ecfea67b1779f38"
+  },
+  "n": 7,
+  "denominator": 7,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_T09_duplicate_release_blocks",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_fourth_candidate_blocked",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_missing_history_blocks",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_two_releases_can_be_evaluated",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_unverified_decision_blocks",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_unverified_ledger_blocks",
+      "result": "ok"
+    },
+    {
+      "name": "test_T09_wrong_commission_blocks",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "3a073cee9c141bc097f317fee680f378e25f2da6cdc7b1910579bf06a227110d",
+  "sanitized_log": "test_T09_duplicate_release_blocks ... ok\ntest_T09_fourth_candidate_blocked ... ok\ntest_T09_missing_history_blocks ... ok\ntest_T09_two_releases_can_be_evaluated ... ok\ntest_T09_unverified_decision_blocks ... ok\ntest_T09_unverified_ledger_blocks ... ok\ntest_T09_wrong_commission_blocks ... ok\nRan 7 tests\nOK\n",
+  "production_authority": false,
+  "limitations": [
+    "Release decision IDs are synthetic, not authenticated Human approvals",
+    "Ledger is not connected to active B-to-C release path",
+    "No authoritative commission release count established"
+  ]
+}
