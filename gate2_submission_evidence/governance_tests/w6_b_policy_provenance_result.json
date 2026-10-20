@@ -1,0 +1,43 @@
+{
+  "evidence_class": "SYNTHETIC_B_POLICY_PROVENANCE_TEST",
+  "scope": "Structural and hash checks only; no Human authentication, trusted source of truth, or active workflow integration",
+  "timestamp_utc": "2026-10-20T02:53:13.681558+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "64fbc275fd405ce3e3ec95d03553b9cc72183a58",
+  "source_sha256": {
+    "b_policy_provenance_v1.py": "249c60d23cf7ef27a37f81fe30780927a16187301d4e25dd39cd990ff5c61a0b",
+    "test_b_policy_provenance_v1.py": "cfe899ce33711ec2ef9eaa5e317b3b22cc3854c9b7fcc91c966d7d1a8e2eeded"
+  },
+  "n": 6,
+  "denominator": 6,
+  "verdict": "PASS",
+  "test_cases": [
+    {
+      "name": "test_missing_external_digest_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_missing_human_provenance_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_rule_change_authority_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_synthetic_complete_shape_only",
+      "result": "ok"
+    },
+    {
+      "name": "test_tampered_bundle_holds",
+      "result": "ok"
+    },
+    {
+      "name": "test_unverified_release_ledger_holds",
+      "result": "ok"
+    }
+  ],
+  "raw_log_sha256": "e672e241404a7f2b8f6aa6342fb43848834f77a0617679decf1e033c2034ed93",
+  "sanitized_log": "test_missing_external_digest_holds ... ok\ntest_missing_human_provenance_holds ... ok\ntest_rule_change_authority_holds ... ok\ntest_synthetic_complete_shape_only ... ok\ntest_tampered_bundle_holds ... ok\ntest_unverified_release_ledger_holds ... ok\nRan 6 tests\nOK\n",
+  "production_authority": false
+}
