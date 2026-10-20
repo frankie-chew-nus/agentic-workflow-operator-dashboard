@@ -1,0 +1,47 @@
+{
+  "evidence_class": "B_GOVERNANCE_FASTTRACK_REGRESSION",
+  "scope": "Selected positive experimental governance suites; NOT full historical T01-T10 or active production B-to-C verification",
+  "timestamp_utc": "2026-10-20T11:34:46.860816+00:00",
+  "git_branch": "fix/w6-b-governance-controls",
+  "git_commit": "34b3bb8d76e55fe6f3c90ce8a57adf7ad8edc11f",
+  "modules": [
+    "test_b_boundary_policy_v1",
+    "test_isolated_b_policy_harness",
+    "test_isolated_b_preflight_adapter",
+    "test_b_governance_policy_schema",
+    "test_b_policy_provenance_v1",
+    "test_b_commission_release_ledger_v1",
+    "test_b_policy_change_gate_v1",
+    "test_consolidated_b_governance_preflight",
+    "test_disposable_b_integration",
+    "test_w10_c_dependency_static",
+    "test_w10_c_dependency_hold"
+  ],
+  "test_count_reported": 63,
+  "passed": 63,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "return_code": 0,
+  "verdict": "PASS",
+  "source_sha256": {
+    "test_b_boundary_policy_v1.py": "7340ef247a962f3e56051a5aab8bb1a20191d03c80536ea0a37a3daabbeaf3cb",
+    "test_isolated_b_policy_harness.py": "c04f890d4fbc19c2f2376ccde75dc30c7f7a6654a1a71320cb8c7282a016f163",
+    "test_isolated_b_preflight_adapter.py": "14a7da3d8988f9a4a020bbdbdc43992765eeca8fffd0332860b32d665ab9ab89",
+    "test_b_governance_policy_schema.py": "2e3e4fd99744be3cc63de9594992e9d4aa4633e27a36679688911f63f35f5c88",
+    "test_b_policy_provenance_v1.py": "cfe899ce33711ec2ef9eaa5e317b3b22cc3854c9b7fcc91c966d7d1a8e2eeded",
+    "test_b_commission_release_ledger_v1.py": "6f65ae5b4caec5e41e171bcac62e889b54378b39aacea6721ecfea67b1779f38",
+    "test_b_policy_change_gate_v1.py": "9a78a8c846a3e8c32bb8d4950faf577bc383109fbc62804ad699957ce712bcb1",
+    "test_consolidated_b_governance_preflight.py": "1f349e4d670ec65ad0700afe9d3652d40b80149a161363714a4f44da0267cb99",
+    "test_disposable_b_integration.py": "36355f7eb05a6c1e0e5d7785cd0f64581cfed969df41d15f6d6eb994fb49c247",
+    "test_w10_c_dependency_static.py": "7532affe151b330c18da38e590339e999b51e65ee1590475bc8debca957a1d4c",
+    "test_w10_c_dependency_hold.py": "2e4726cf49cba84539ee56f11c153a304dc4cba3876b9734bab35a9ff35ae78a"
+  },
+  "raw_log_sha256": "b8ba2e24ae29051146fb8ded008bacc751c52bfb61c323332838b7c204138d1f",
+  "production_authority": false,
+  "limitations": [
+    "No authenticated Human approvals or authoritative production inventories",
+    "No active adapter modifications",
+    "Original negative baseline results remain separate"
+  ]
+}
