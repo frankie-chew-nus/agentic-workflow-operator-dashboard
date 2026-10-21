@@ -11,8 +11,8 @@ class ActualHoldOnlyTests(unittest.TestCase):
  def test_actual_dashboard_blocks_release_and_preserves_ledger(self):
   with tempfile.TemporaryDirectory() as td:
    base=Path(td);shutil.copy2(ROOT/"gate2.py",base/"gate2.py")
-   for name in ("operator_artifacts.py","operator_paths.json"):shutil.copy2(ROOT/name,base/name)
-   saved=sys.modules.pop("operator_artifacts",None);sys.path.insert(0,str(base))
+   for name in ("operator_artifacts.py","operator_paths.json","b_operational_boundary.py"):shutil.copy2(ROOT/name,base/name)
+   saved={name:sys.modules.pop(name,None) for name in ("operator_artifacts","b_operational_boundary")};sys.path.insert(0,str(base))
    server=None;worker=None
    try:
     spec=importlib.util.spec_from_file_location("actual_hold_gate2",base/"gate2.py")
@@ -35,6 +35,8 @@ class ActualHoldOnlyTests(unittest.TestCase):
     if server:
      server.shutdown();server.server_close()
      if worker:worker.join(timeout=5)
-    sys.path.remove(str(base));sys.modules.pop("operator_artifacts",None)
-    if saved is not None:sys.modules["operator_artifacts"]=saved
+    sys.path.remove(str(base))
+    for name,original in saved.items():
+     sys.modules.pop(name,None)
+     if original is not None:sys.modules[name]=original
 if __name__=="__main__":unittest.main()
