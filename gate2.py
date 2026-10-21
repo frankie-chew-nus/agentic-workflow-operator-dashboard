@@ -11,6 +11,9 @@ OPERATOR_PATHS=resolve_paths(BASE)
 CROOT=Path(OPERATOR_PATHS['c_engine'])
 LEGACY_OPERATOR=Path(OPERATOR_PATHS['b_engine'])
 PORT=8787
+# Host-only disposable test injection. Never loaded from requests or config files.
+DISPOSABLE_GOVERNANCE_TEST_MODE=False
+DISPOSABLE_GOVERNANCE_CONTEXT=None
 
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
 def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
@@ -726,15 +729,26 @@ class H(BaseHTTPRequestHandler):
                 decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'B_RESUME','Governed B correction via configured model endpoint')
             elif d=='REJECT':decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='REJECTED',detail='Human rejected candidate' WHERE id=?",(cid,))
             elif d=='RELEASE_TO_C':
-                # Operational inspection is read-only and fail-closed. No release
-                # decision or C queue action is authorized by this path.
-                from b_operational_boundary import inspect
-                review=inspect(c,cid,r['id'],x['version'],
-                    BASE/'gate2_submission_evidence'/'governance_tests')
-                if review['release_authorized']:
-                    raise RuntimeError('UNEXPECTED_ACTIVE_RELEASE_AUTHORITY')
-                c.execute("UPDATE candidates SET detail=? WHERE id=?",
-                          ('B governance HOLD: '+', '.join(review['failures']),cid))
+                # Positive release exists ONLY in a named disposable test copy,
+                # with trusted context injected by the test host, never by POST.
+                if (BASE.name=='w6_disposable_dashboard'
+                        and DISPOSABLE_GOVERNANCE_TEST_MODE
+                        and DISPOSABLE_GOVERNANCE_CONTEXT is not None):
+                    from b_disposable_governed_http_release import attempt
+                    result=attempt(c,cid,r['id'],x['version'],rat,
+                                   DISPOSABLE_GOVERNANCE_CONTEXT)
+                    if not result['released']:
+                        c.execute("UPDATE candidates SET detail=? WHERE id=?",
+                                  ('B governance HOLD: '+', '.join(result['failures']),cid))
+                else:
+                    # Actual working dashboard always fails closed.
+                    from b_operational_boundary import inspect
+                    review=inspect(c,cid,r['id'],x['version'],
+                        BASE/'gate2_submission_evidence'/'governance_tests')
+                    if review['release_authorized']:
+                        raise RuntimeError('UNEXPECTED_ACTIVE_RELEASE_AUTHORITY')
+                    c.execute("UPDATE candidates SET detail=? WHERE id=?",
+                              ('B governance HOLD: '+', '.join(review['failures']),cid))
         c.commit();c.close();self.send_response(303);self.send_header('Location','/');self.end_headers()
     def log_message(self,*a):pass
 
