@@ -17,7 +17,7 @@ RELEASE_BRANCH="""elif d=='RELEASE_TO_C':
                               ('B governance HOLD: '+result.get('reason','UNKNOWN'),cid))"""
 FORM_MARKER="def form_buttons(buttons,placeholder='Human rationale'):"
 FORM_TAIL="bs+'</form>'"
-FORM_PIN="(PIN_FIELD if any(v=='RELEASE_TO_C' for v,lbl in buttons) else '')+bs+'</form>'"
+FORM_PIN="("+repr(PIN_FIELD)+" if any(v=='RELEASE_TO_C' for v,lbl in buttons) else '')+bs+'</form>'"
 
 def build(source,destination):
  source=Path(source).resolve();destination=Path(destination).resolve()
