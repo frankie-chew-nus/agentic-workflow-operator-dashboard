@@ -31,7 +31,7 @@ def build(source,destination):
  form,rest=tail.split('\ndef stage_body(',1)
  if form.count(FORM_TAIL)!=1:raise ValueError('FORM_CHANGED_FAIL_CLOSED')
  form=form.replace(FORM_TAIL,FORM_PIN)
- updated=head+FORM_MARKER+form+'\ndef stage_body('+rest)
+ updated=head+FORM_MARKER+form+'\ndef stage_body('+rest
  compile(updated,str(destination),"exec")
  destination.parent.mkdir(parents=True,exist_ok=True)
  destination.write_text(updated,encoding="utf-8")
