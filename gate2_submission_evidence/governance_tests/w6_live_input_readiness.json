@@ -1,0 +1,86 @@
+{
+  "evidence_class": "READ_ONLY_LIVE_INPUT_READINESS",
+  "timestamp_utc": "2026-10-21T01:54:06.581462+00:00",
+  "branch": "fix/w6-b-governance-controls",
+  "commit": "34896288a3915781fef5969c9ba2f52e43d47db2",
+  "dataset": {
+    "sha256": "f3f94246e582f5ca548454f0be324ec38ac4b59f349dfedc6a2fa9b28ac3d1b3",
+    "rows": 354130,
+    "invalid_rows": 0,
+    "nonincreasing_timestamps": 0,
+    "raw_values_exported": false
+  },
+  "frozen_register_sha256": "2d757b7d2dbcb7f623ac7c0fde68fa74e71915107912fa2ba9e7329c12883e01",
+  "required_inputs": [
+    "ATR",
+    "Close",
+    "High",
+    "Low",
+    "Open",
+    "Previous_Day_OHLC"
+  ],
+  "db_sha256": "158482d6edd407984f7dd93bdb11fd0c31295f0ee4f6b4343d1e89cfc67d22db",
+  "db_candidate_state_counts": [
+    {
+      "state": "C_FAIL",
+      "count": 2
+    },
+    {
+      "state": "GOVERNANCE_HOLD",
+      "count": 1
+    }
+  ],
+  "db_decision_type_counts": [
+    {
+      "type": "RETRY_B",
+      "count": 2
+    },
+    {
+      "type": "RETURN_TO_B",
+      "count": 9
+    }
+  ],
+  "approval_record_hashes": {
+    "T04_OPERATOR_POLICY_APPROVAL_2026-10-21.md": {
+      "present": true,
+      "sha256": "802b4f5b02f9286999e0b63bd4d9c01862d81af88178106f4998764d53126ca8"
+    },
+    "T05_OPERATOR_POLICY_APPROVAL_2026-10-21.md": {
+      "present": true,
+      "sha256": "877343ce4707144fec97b6a06fb9f0a1392256404bc3a2a68e4279bc1b827cf0"
+    },
+    "T09_T10_OPERATOR_POLICY_APPROVAL_2026-10-21.md": {
+      "present": true,
+      "sha256": "ef1b84ba796e3e5af90a166399d3a4247a4be02729b25db01287fdce5d23c4e0"
+    }
+  },
+  "controls": {
+    "T04": {
+      "policy_definition_recorded": true,
+      "ohlc_structural_check": "PASS",
+      "ATR_contract": "UNVERIFIED",
+      "Previous_Day_OHLC_contract": "UNVERIFIED",
+      "resource_inventory": "NOT_APPROVED",
+      "verdict": "HOLD"
+    },
+    "T05": {
+      "policy_definition_recorded": true,
+      "approved_live_dependency_inventory": "UNVERIFIED",
+      "verdict": "HOLD"
+    },
+    "T09": {
+      "policy_definition_recorded": true,
+      "reconciled_commission_release_ledger": "UNVERIFIED",
+      "verdict": "HOLD"
+    },
+    "T10": {
+      "policy_definition_recorded": true,
+      "independently_authenticated_human_decision_register": "UNVERIFIED",
+      "verdict": "HOLD"
+    }
+  },
+  "overall": "HOLD_NOT_READY_FOR_ACTIVE_INTEGRATION",
+  "note": "Historical DB labels do not establish release authority. Approved policy definitions are not approved live inventories.",
+  "active_adapter_modified": false,
+  "production_authority": false
+}
