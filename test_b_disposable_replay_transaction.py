@@ -12,6 +12,7 @@ class ReplayTests(unittest.TestCase):
 CREATE TABLE decisions(id TEXT PRIMARY KEY,research_id TEXT,candidate_id TEXT,decision TEXT,rationale TEXT,created_at TEXT);
 INSERT INTO candidates VALUES('A','R','B_REVIEW','B');
 INSERT INTO candidates VALUES('B','R','B_REVIEW','B');""")
+  c.execute("""CREATE TABLE disposable_authority_nonces(nonce TEXT PRIMARY KEY,candidate_id TEXT NOT NULL,research_id TEXT NOT NULL,used_at TEXT NOT NULL)""")
   c.commit();c.close()
  def tearDown(self):self.tmp.cleanup()
  def context(self,cid,nonce,expires=None):
@@ -21,12 +22,16 @@ INSERT INTO candidates VALUES('B','R','B_REVIEW','B');""")
    "production_authority":False,"controls":{k:{"status":"VERIFIED","evidence_sha256":"a"*64} for k in ("T04","T05","T09","T10")},
    "approval":p,"signature":sign(p,self.key)}
  def call(self,cid,ctx,key=None):
-  with sqlite3.connect(self.path,timeout=10) as c:
+  c=sqlite3.connect(self.path,timeout=10)
+  try:
    return attempt(c,cid,"R",ctx,self.key if key is None else key,disposable=True)
+  finally:c.close()
  def count(self):
-  with sqlite3.connect(self.path) as c:
+  c=sqlite3.connect(self.path)
+  try:
    return (c.execute("SELECT COUNT(*) FROM decisions WHERE decision='RELEASE_TO_C'").fetchone()[0],
     c.execute("SELECT COUNT(*) FROM disposable_authority_nonces").fetchone()[0])
+  finally:c.close()
  def test_valid_and_duplicate(self):
   ctx=self.context("A","unique-nonce-00000001")
   self.assertEqual(self.call("A",ctx)["state"],"DISPOSABLE_RELEASED")
@@ -50,7 +55,9 @@ INSERT INTO candidates VALUES('B','R','B_REVIEW','B');""")
   self.assertEqual(self.count(),(0,0))
  def test_no_active_mode(self):
   ctx=self.context("A","unique-nonce-00000001")
-  with sqlite3.connect(self.path) as c:
+  c=sqlite3.connect(self.path)
+  try:
    self.assertEqual(attempt(c,"A","R",ctx,self.key)["reason"],"ACTIVE_INTEGRATION_NOT_APPROVED")
+  finally:c.close()
   self.assertEqual(self.count()[0],0)
 if __name__=="__main__":unittest.main()
