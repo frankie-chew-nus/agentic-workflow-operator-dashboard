@@ -15,16 +15,23 @@ RELEASE_BRANCH="""elif d=='RELEASE_TO_C':
                 if result['state']!='DISPOSABLE_RELEASED':
                     c.execute("UPDATE candidates SET detail=? WHERE id=?",
                               ('B governance HOLD: '+result.get('reason','UNKNOWN'),cid))"""
-FORM_ORIGINAL="return '<form method=post action=/decide><textarea name=rationale required minlength=12 placeholder="'+html.escape(placeholder)+'"></textarea><input type=hidden name=candidate value=CAND-B-002>'+bs+'</form>'"
-FORM_REPLACEMENT="return '<form method=post action=/decide><textarea name=rationale required minlength=12 placeholder="'+html.escape(placeholder)+'"></textarea><input type=hidden name=candidate value=CAND-B-002>'+("+repr(PIN_FIELD)+" if any(v=='RELEASE_TO_C' for v,lbl in buttons) else '')+bs+'</form>'"
+FORM_MARKER="def form_buttons(buttons,placeholder='Human rationale'):"
+FORM_TAIL="bs+'</form>'"
+FORM_PIN="(PIN_FIELD if any(v=='RELEASE_TO_C' for v,lbl in buttons) else '')+bs+'</form>'"
+
 def build(source,destination):
  source=Path(source).resolve();destination=Path(destination).resolve()
  if destination.parent.name!="w6_disposable_dashboard" or source==destination:
   raise ValueError("DISPOSABLE_PATH_REQUIRED")
  code=source.read_text(encoding="utf-8")
- if code.count(ORIGINAL)!=1 or code.count(FORM_ORIGINAL)!=1:
+ if code.count(ORIGINAL)!=1 or code.count(FORM_MARKER)!=1:
   raise ValueError("DASHBOARD_SOURCE_CHANGED_FAIL_CLOSED")
- updated=code.replace(ORIGINAL,RELEASE_BRANCH).replace(FORM_ORIGINAL,FORM_REPLACEMENT)
+ updated=code.replace(ORIGINAL,RELEASE_BRANCH)
+ head,tail=updated.split(FORM_MARKER,1)
+ form,rest=tail.split('\\ndef stage_body(',1)
+ if form.count(FORM_TAIL)!=1:raise ValueError('FORM_CHANGED_FAIL_CLOSED')
+ form=form.replace(FORM_TAIL,FORM_PIN)
+ updated=head+FORM_MARKER+form+'\\ndef stage_body('+rest
  compile(updated,str(destination),"exec")
  destination.parent.mkdir(parents=True,exist_ok=True)
  destination.write_text(updated,encoding="utf-8")
