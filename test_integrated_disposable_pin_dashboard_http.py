@@ -70,7 +70,9 @@ class IntegratedPINHTTPTests(unittest.TestCase):
     post("736291");self.assertEqual(snapshot(),("READY_FOR_C",1))
     post("736291");self.assertEqual(snapshot(),("READY_FOR_C",1))
    finally:
-    if server:server.shutdown();server.server_close()
+    if server:
+     server.shutdown();server.server_close()
+     thread.join(timeout=5)
     sys.path.remove(str(base))
     for name,original in saved.items():
      sys.modules.pop(name,None)
