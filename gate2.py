@@ -726,11 +726,15 @@ class H(BaseHTTPRequestHandler):
                 decision(c,r['id'],cid,d,rat);queue(c,r['id'],cid,'B_RESUME','Governed B correction via configured model endpoint')
             elif d=='REJECT':decision(c,r['id'],cid,d,rat);c.execute("UPDATE candidates SET state='REJECTED',detail='Human rejected candidate' WHERE id=?",(cid,))
             elif d=='RELEASE_TO_C':
-                # Gate 2 evidence-safe integration: fail closed until operational
-                # T04/T05/T09/T10 evidence is independently reconciled.
-                # No PIN, no simulated authority, no release decision insertion.
+                # Operational inspection is read-only and fail-closed. No release
+                # decision or C queue action is authorized by this path.
+                from b_operational_boundary import inspect
+                review=inspect(c,cid,r['id'],x['version'],
+                    BASE/'gate2_submission_evidence'/'governance_tests')
+                if review['release_authorized']:
+                    raise RuntimeError('UNEXPECTED_ACTIVE_RELEASE_AUTHORITY')
                 c.execute("UPDATE candidates SET detail=? WHERE id=?",
-                          ('B governance HOLD: T04/T05/T09/T10 operational verification pending; existing C releases preserved',cid))
+                          ('B governance HOLD: '+', '.join(review['failures']),cid))
         c.commit();c.close();self.send_response(303);self.send_header('Location','/');self.end_headers()
     def log_message(self,*a):pass
 
