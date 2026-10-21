@@ -88,6 +88,13 @@ class ActualHTTPGovernanceTests(unittest.TestCase):
         self.mod.DISPOSABLE_GOVERNANCE_CONTEXT["policy_change_actor"]="AI_AGENT"
         self.assert_hold("T10_AI_RULE_CHANGE")
     def test_valid_authorized_release_once_and_duplicate_hold(self):
+        # FAIL: the unchanged actual dashboard must deny this synthetic candidate.
+        self.mod.DISPOSABLE_GOVERNANCE_TEST_MODE=False
+        self.post()
+        self.assertEqual(self.snapshot()[:2],("B_REVIEW",0))
+        # FIX: trusted test-host context enables the corrected disposable branch.
+        self.mod.DISPOSABLE_GOVERNANCE_TEST_MODE=True
+        # PASS: one governed B->C boundary transition, no C execution.
         self.post()
         state,count,detail=self.snapshot()
         self.assertEqual((state,count),("READY_FOR_C",1))
