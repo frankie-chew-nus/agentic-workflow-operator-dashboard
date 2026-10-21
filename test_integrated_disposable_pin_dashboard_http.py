@@ -38,6 +38,7 @@ class IntegratedPINHTTPTests(unittest.TestCase):
     c=sqlite3.connect(module.DB)
     try:
      c.execute("CREATE TABLE disposable_authority_nonces(nonce TEXT PRIMARY KEY,candidate_id TEXT,research_id TEXT,used_at TEXT)")
+     c.execute("CREATE TABLE disposable_pin_attempts(candidate_id TEXT PRIMARY KEY,failures INTEGER NOT NULL,locked_until INTEGER NOT NULL)")
      c.commit()
     finally:c.close()
     server=ThreadingHTTPServer(("127.0.0.1",0),module.H)
