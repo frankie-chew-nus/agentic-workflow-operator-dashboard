@@ -3,8 +3,8 @@ import ast, importlib.util, json, os, tempfile, unittest
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parent
-C=ROOT/'gate2_c_controller'
-B=ROOT/'gate2_operator_app_v1'
+C=next((p for p in (ROOT/'gate2_c_controller',ROOT.parent/'gate2_c_controller') if p.is_dir()),ROOT/'gate2_c_controller')
+B=next((p for p in (ROOT/'gate2_operator_app_v1',ROOT.parent/'gate2_operator_app_v1') if p.is_dir()),ROOT/'gate2_operator_app_v1')
 
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
