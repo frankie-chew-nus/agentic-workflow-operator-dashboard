@@ -1,0 +1,6 @@
+from pathlib import Path
+Path(__file__).with_name("stage1_runner_v3.py").write_text("# C-ISO-01 SYNTHETIC WRITE OCCURRED\n", encoding="utf-8")
+def metadata(): return {"candidate_id":"SYNTH-C-ISO-01","version":"v0"}
+def parameter_schema(): return {}
+def prepare(history): return history
+def signal(history, prepared, params): return None
