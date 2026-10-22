@@ -1,0 +1,21 @@
+{
+  "candidate_id": "SYNTH-C-ISO-01",
+  "release_record": "<disposable>/engine/implementation_release.json",
+  "performance_data_used": false,
+  "synthetic_ohlc_only": true,
+  "state": "SEMANTIC_GATE_PASS",
+  "module_sha256": "55f7cc10e41c4d9eac45080cc25d5105c3f0efebd2556a11012d7f347d05cab4",
+  "candidate_code_executed": true,
+  "failure_count": 0,
+  "checks": [
+    {"check": "IDENTITY", "state": "PASS", "detail": "{'candidate_id': 'SYNTH-C-ISO-01', 'version': 'v0'}"},
+    {"check": "PARAMETER_NAMES", "state": "PASS", "detail": "{}"},
+    {"check": "NO_C_OWNED_PARAMETERS", "state": "PASS", "detail": "{}"},
+    {"check": "OHLC_INPUT_CONVENTION_DISCOVERED", "state": "PASS", "detail": "{}"},
+    {"check": "OHLC_CONVENTION_DOCUMENTED", "state": "PASS", "detail": "lower"},
+    {"check": "HISTORY_NOT_MUTATED", "state": "PASS", "detail": ""},
+    {"check": "DETERMINISTIC", "state": "PASS", "detail": "None vs None"},
+    {"check": "SIGNAL_REPRESENTATION", "state": "PASS", "detail": "None"},
+    {"check": "NONACTIONABLE_SENTINEL_DOCUMENTED", "state": "PASS", "detail": "None"}
+  ]
+}
