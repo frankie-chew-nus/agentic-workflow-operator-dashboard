@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-10-22",
+  "evidence_class": "IN_VITRO_SOURCE_STATIC_AND_MOCK_TEST",
+  "source_snapshot": {
+    "working_repository": "frankie-chew-nus/agentic-workflow-operator-dashboard",
+    "working_baseline_commit": "4399c7515d546950dc1e5ee78fd44ad355c2359a",
+    "bundled_bc_snapshot_repository": "frankie-chew-nus/agentic-workflow-operator-dashboard-v2",
+    "bundled_bc_snapshot_commit": "83dcb3f85c2ec62187375a538abe4098e1b1e3f1",
+    "local_sibling_engines_hash_verified_against_snapshot": false
+  },
+  "observations": [
+    {
+      "control": "generated_python_compilation",
+      "status": "IMPLEMENTED_AND_TESTED",
+      "evidence": "py_compile syntax check; mocked/static test; not an import policy"
+    },
+    {
+      "control": "active_c_import_allowlist",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "No AST allowlist in active build_candidate_v2.py or file_authoritative_build.py"
+    },
+    {
+      "control": "dynamic_module_execution_isolated",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "exec_module in release_semantic_gate, stage1_runner_v3 and c_stage1_interface"
+    },
+    {
+      "control": "semantic_gate_synthetic_behavior",
+      "status": "IMPLEMENTED_NOT_TESTED",
+      "evidence": "active release_semantic_gate source checks; not executed with a released strategy in this audit"
+    },
+    {
+      "control": "candidate_parameter_grid_bounds",
+      "status": "IMPLEMENTED_AND_TESTED",
+      "evidence": "c_candidate_stage1_plan and prior unit tests"
+    },
+    {
+      "control": "runner_governance_file_write_boundary",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "composer uses workspace paths but no OS read-only protection"
+    },
+    {
+      "control": "b_endpoint_config_mock",
+      "status": "IMPLEMENTED_AND_TESTED",
+      "evidence": "mocked OpenAI path and invalid endpoint/config tests"
+    },
+    {
+      "control": "c_endpoint_config_mock",
+      "status": "IMPLEMENTED_AND_TESTED",
+      "evidence": "mocked chat/completions and missing config tests"
+    },
+    {
+      "control": "live_provider_switch",
+      "status": "IMPLEMENTED_NOT_TESTED",
+      "evidence": "no two-provider real-call test"
+    },
+    {
+      "control": "independent_llm_semantic_review",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "no independent reviewer in active C gate"
+    },
+    {
+      "control": "confidentiality_keyword_gateway",
+      "status": "IMPLEMENTED_AND_TESTED",
+      "evidence": "representative GREEN/RED static tests only"
+    },
+    {
+      "control": "external_endpoint_trust_allowlist",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": "configurable arbitrary base URL; no data-class-bound destination policy"
+    }
+  ],
+  "test_execution": {
+    "runner": "python -m unittest test_gate2_c_model_audit -v",
+    "source": "clean container extracted v2 main snapshot with audit test file",
+    "passed": 10,
+    "failed": 0,
+    "errors": 0,
+    "live_network_calls": 0,
+    "live_provider_calls": 0,
+    "untrusted_strategy_executed": false,
+    "backtests_executed": false
+  },
+  "source_sha256_snapshot": {
+    "c_controller.py": "1394758439ed6fc8024df45ff8c8f97ade3e10e54b7324251b13390bdd3964ac",
+    "c_candidate_stage1_plan.py": "41585b25b5104ec79830a7c7841ec60d2ae136760b9d51c990f49ef172a8d78b",
+    "c_candidate_stage1_runner.py": "0abd73fe3037866b4f211dddf7908bda3e73c6533f5962c50ed65e00530c7a87",
+    "c_gate_predicates.py": "c2fb2ca87e7ae1e03ccbc90681a45281555524fb931f53b78d2b53a331a13bec",
+    "c_stage1_interface.py": "23e9147dda9db164a774cbbda62e1ef7c1343bbe8bc940d81b3404ded25ddbe1",
+    "gate2_c_controller/build_candidate_v2.py": "ab73fc3db08679466bc847ad4d332b4671f0adcae38ead77ed5a81c949398563",
+    "gate2_c_controller/file_authoritative_build.py": "c8cb03c7cff3157004f313a91dc9eb0be1bd04cb91a7c1fa6bbee57377bbd527",
+    "gate2_c_controller/atomic_build_release_clean.py": "e6e9ec41ed46b8bec664d59bd37647fe4477e13c28c0de2bd7ae6e5d43504e6a",
+    "gate2_c_controller/release_semantic_gate.py": "c8f6bcf5de4880b39f1f68e37b4413f7e0f2e376db77e9ce5abeb0169ad6a1df",
+    "gate2_c_controller/semantic_repair_release.py": "1077e74d0dbc19e2d1625f45bf9d3703d180b05a0969580891f6993691676dea",
+    "gate2_c_controller/stage1_runner_v3.py": "37a3b73c3584433d5e1c39a2c467408a088468cfbdb6c906f2aa42070bc7b6fb",
+    "gate2_c_controller/c_controller.py": "0a4a4849f645241462b3ce459a16dbf93caef2028e02266f239212661f9543ae",
+    "gate2_c_controller/config/agent_registry.json": "c9b551202c6201f07550630cbff01341bc94dc4f0f21d6dc5ff64a0dee2a42b6",
+    "gate2_operator_app_v1/model_endpoint.py": "1e9a9b6f5903a1d3bf4dca23cf4cbf9761143436eeab3a5b8be8f75cf948646b",
+    "gate2_operator_app_v1/b_model_adapter.py": "fd1a7c477aab290468644c2bc6d47556b67c7c50e8ea26b067fe6f4e15f2a49a"
+  },
+  "limitations": [
+    "Hash fingerprints refer to the audited v2 main source snapshot, not unverified local sibling copies.",
+    "The 10 tests check source structure and mocked endpoint calls; no malicious module was executed.",
+    "No real model/provider switching or historical DeepCoder/Qwen3-Coder calls were independently verified.",
+    "Do not infer production governance enforcement from presence of policy or tests."
+  ]
+}
